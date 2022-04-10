@@ -1,0 +1,169 @@
+name: Build and Release Performous
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on merges to master, release branches,
+  # all PRs, and release tags 
+  push:
+    branches:
+      - master
+      - '[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+'
+    tags:
+      - '[0-9]+\.[0-9]+\.[0-9]+'
+      - '[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+'
+
+  # On anything pull request related
+  pull_request:
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Note: entire jobs or sections can be disabled by adding
+# if: ${{ false }} to the definition column
+jobs:
+  # Set up a release that packages will be published to.
+  create_release:
+    name: Create a release
+    runs-on: ubuntu-latest
+    # Make sure the output variable for this step is set so it
+    # can be consumed by later build steps
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url || steps.create_beta_release.outputs.upload_url }}
+    steps:
+      - name: Get a short SHA for the Beta release
+        if: ${{ github.event_name != 'pull_request' &&  github.ref_type != 'tag' }}
+        id: short_sha
+        run: |
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> ${GITHUB_ENV}
+
+      - name: Create the Beta release
+        id: create_beta_release
+        if: ${{ github.event_name != 'pull_request' && github.ref_type != 'tag' }}
+        uses: actions/create-release@v1
+        env:
+          # This token is automatically generated with each virtual session
+          # DO NOT create this in the secrets manager
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: 1.2.0-beta-${{ github.run_number }}-${{ env.SHORT_SHA }}
+          release_name: Beta 1.2.0-beta-${{ github.run_number }}-${{ env.SHORT_SHA }}
+          draft: false
+          prerelease: true
+
+      - name: Create the Main release
+        id: create_release
+        if: ${{ github.event_name != 'pull_request' &&  github.ref_type == 'tag' }}
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: true
+          prerelease: false
+
+  # Create the Linux Packages
+  # This is done in containers provided by
+  # https://github.com/performous/performous-docker since
+  # github actions provides only Ubuntu
+  Linux_Packages:
+    # if: ${{ false }}
+    # The upload step needs the release to be created first so it
+    # can access the upload_url output
+    name: Create Linux packages
+    needs: create_release
+    # Ubuntu required for Linux containers
+    runs-on: ubuntu-latest
+    # The docker registry here is hard-coded because it it publicly visible
+    # and therefore will work if forked. If you are setting up a registry,
+    # make sure the visibility of the registry is set to "public".
+    # This is necessary because the container registry is set up under a
+    # different github repository than this one, and GITHUB_TOKEN is only
+    # valid for one session in the repo the job was started under.
+    # Because the the performous-docker gh repo created the registry, it has
+    # ownership over the registry in ghcr.io and cannot be accessed from here.
+    container: ghcr.io/performous/deps:${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          # Images must be added to 
+          # https://github.com/performous/performous-docker with a successful
+          # run on master before they can be used here
+          - ubuntu18.04
+          - ubuntu20.04
+          - ubuntu22.04
+          - fedora33
+          - fedora34
+          - fedora35
+    steps:
+      - name: Checkout Git
+        id: checkout_git
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Build package
+        id: build_package
+        run: |
+          # Pull in OS variables to figure out options later
+          . /etc/os-release
+
+          ## Set up some special cmake flags for fedora
+          if [ "${ID}" == "fedora" ]; then
+            EXTRA_CMAKE_ARGS="-DUSE_BOOST_REGEX=1"
+          fi
+
+          ## Figure out what type of packages we need to generate
+          case ${ID} in
+            'fedora')
+          PACKAGE_TYPE='RPM';;
+            'ubuntu')
+          PACKAGE_TYPE='DEB';;
+            *)
+          PACKAGE_TYPE='TAR';;
+          esac
+
+          # Build the Packages
+          mkdir build_cmake
+          cd build_cmake
+          cmake ${EXTRA_CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release\
+            -DENABLE_WEBSERVER=ON\
+            -DCMAKE_VERBOSE_MAKEFILE=1\
+            -DENABLE_WEBCAM=ON ..
+          CPU_CORES=$(nproc --all)
+          make -j${CPU_CORES}
+          cpack -G ${PACKAGE_TYPE}
+          
+          # Do some mangling to make a unique name based on the OS
+          # This is needed so we don't overwite in the release each time.
+          # We should probably investigate what cmake can do for package output
+          # to make this cleaner in the future
+          WORK_DIR=$(pwd)
+          PACKAGE_NAME=$(ls ${WORK_DIR}/Performous*-Linux.*)
+          PACKAGE_PREFIX=$(echo ${PACKAGE_NAME} | sed 's/.\{4\}$//' )
+          PACKAGE_SUFFIX=$(echo ${PACKAGE_NAME} | sed 's/^.*\(.\{4\}\)/\1/')
+          NEW_PACKAGE_NAME="${PACKAGE_PREFIX}-${ID}_${VERSION_ID}${PACKAGE_SUFFIX}"
+          mv ${PACKAGE_NAME} ${NEW_PACKAGE_NAME}
+          ARTIFACT_NAME=$( echo ${NEW_PACKAGE_NAME} | rev | cut -d '/' -f1 | rev)
+          echo "ARTIFACT_PATH=${NEW_PACKAGE_NAME}" >> ${GITHUB_ENV}
+          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> ${GITHUB_ENV} 
+
+      # Upload artifacts during each run
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.ARTIFACT_PATH }}
+ 
+      # Upload artifacts to releases only during Release events
+      - name: Upload release assets
+        id: upload_assets
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ${{ env.ARTIFACT_PATH }}
+          asset_name: ${{ env.ARTIFACT_NAME }}
+          asset_content_type: application/octet-stream
