@@ -21,57 +21,91 @@ on:
 # Note: entire jobs or sections can be disabled by adding
 # if: ${{ false }} to the definition column
 jobs:
-  # Set up a release that packages will be published to.
-  create_release:
-    name: Create a release
+  # Determine version
+  determine_version:
+    name: Determines the version to be used.
     runs-on: ubuntu-latest
-    # Make sure the output variable for this step is set so it
-    # can be consumed by later build steps
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url || steps.create_beta_release.outputs.upload_url }}
+      latest_tag_version: ${{ steps.versioning.outputs.latest_tag_version }}
+      latest_full_tag_version: ${{ steps.versioning.outputs.latest_full_tag_version }}
+      version_major: ${{ steps.versioning.outputs.version_major }}
+      version_minor: ${{ steps.versioning.outputs.version_minor }}
+      version_patch: ${{ steps.versioning.outputs.version_patch }}
+      version_tweak: ${{ steps.versioning.outputs.version_tweak }}
+      complete_version: ${{ steps.versioning.outputs.complete_version }}
     steps:
-      - name: Get a short SHA for the Beta release
-        if: ${{ github.event_name != 'pull_request' &&  github.ref_type != 'tag' }}
-        id: short_sha
+      - name: Checkout Git
+        id: checkout_git
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+  
+      - name: Determine the complete version
+        id: versioning
         run: |
-          echo "SHORT_SHA=${GITHUB_SHA::7}" >> ${GITHUB_ENV}
+          git fetch --prune --unshallow
+          cd /home/runner/work/performous/performous
+          LATEST_TAG_VERSION=$(git describe --tags --abbrev=0 || echo 1.0.0)
+          LATEST_FULL_TAG_VERSION=$(git describe --tags || echo 1.0.0)
+          echo "::set-output name=latest_tag_version::$(git describe --tags --abbrev=0 || echo 1.0.0)"
+          echo "::set-output name=latest_full_tag_version::$(git describe --tags || echo 1.0.0)"
+          echo "::set-output name=version_major::$(cut -d '.' -f 1 <<< $(git describe --tags --abbrev=0 || echo 1.0.0))"
+          echo "::set-output name=version_minor::$(cut -d '.' -f 2 <<< $(git describe --tags --abbrev=0 || echo 1.0.0))"
+          echo "::set-output name=version_patch::$(cut -d '.' -f 3 <<< $(git describe --tags --abbrev=0 || echo 1.0.0))"
+          echo "::set-output name=version_tweak::0"
+          echo "::set-output name=complete_version::$(if [ $GITHUB_REF_TYPE == 'tag' ]; then echo $GITHUB_REF_NAME; elif [ $GITHUB_REF_TYPE == 'branch' ] && [ $GITHUB_REF_NAME == 'master' ]; then echo $LATEST_FULL_TAG_VERSION-beta; elif [ $GITHUB_REF_TYPE == 'branch' ] && [ $GITHUB_REF_NAME != 'master' ]; then echo $LATEST_TAG_VERSION-${{github.event.pull_request.number}}-${GITHUB_SHA::7}-alpha; fi)"
 
-      - name: Create the Beta release
-        id: create_beta_release
-        if: ${{ github.event_name != 'pull_request' && github.ref_type != 'tag' }}
-        uses: actions/create-release@v1
-        env:
-          # This token is automatically generated with each virtual session
-          # DO NOT create this in the secrets manager
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: 1.2.0-beta-${{ github.run_number }}-${{ env.SHORT_SHA }}
-          release_name: Beta 1.2.0-beta-${{ github.run_number }}-${{ env.SHORT_SHA }}
-          draft: false
-          prerelease: true
-
-      - name: Create the Main release
-        id: create_release
-        if: ${{ github.event_name != 'pull_request' &&  github.ref_type == 'tag' }}
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          draft: true
-          prerelease: false
+  # Set up a release that packages will be published to.
+  #create_release:
+  #  name: Create a release
+  #  runs-on: ubuntu-latest
+  #  # Make sure the output variable for this step is set so it
+  #  # can be consumed by later build steps
+  #  outputs:
+  #    upload_url: ${{ steps.create_release.outputs.upload_url || steps.create_beta_release.outputs.upload_url }}
+  #  steps:
+  #    - name: Get a short SHA for the Beta release
+  #      if: ${{ github.event_name != 'pull_request' &&  github.ref_type != 'tag' }}
+  #      id: short_sha
+  #      run: |
+  #        echo "SHORT_SHA=${GITHUB_SHA::7}" >> ${GITHUB_ENV}
+  #
+  #    - name: Create the Beta release
+  #      id: create_beta_release
+  #      if: ${{ github.event_name != 'pull_request' && github.ref_type != 'tag' }}
+  #      uses: actions/create-release@v1
+  #      env:
+  #        # This token is automatically generated with each virtual session
+  #        # DO NOT create this in the secrets manager
+  #        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #      with:
+  #        tag_name: 1.2.0-beta-${{ github.run_number }}-${{ env.SHORT_SHA }}
+  #        release_name: Beta 1.2.0-beta-${{ github.run_number }}-${{ env.SHORT_SHA }}
+  #        draft: false
+  #        prerelease: true
+  #
+  #    - name: Create the Main release
+  #      id: create_release
+  #      if: ${{ github.event_name != 'pull_request' &&  github.ref_type == 'tag' }}
+  #      uses: actions/create-release@v1
+  #      env:
+  #        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #      with:
+  #        tag_name: ${{ github.ref_name }}
+  #        release_name: Release ${{ github.ref_name }}
+  #        draft: true
+  #        prerelease: false
 
   # Create the Linux Packages
   # This is done in containers provided by
   # https://github.com/performous/performous-docker since
   # github actions provides only Ubuntu
   Linux_Packages:
-    # if: ${{ false }}
+    if: ${{ false }}
     # The upload step needs the release to be created first so it
     # can access the upload_url output
     name: Create Linux packages
-    needs: create_release
+    needs: determine_version
     # Ubuntu required for Linux containers
     runs-on: ubuntu-latest
     # The docker registry here is hard-coded because it it publicly visible
@@ -139,11 +173,12 @@ jobs:
           # We should probably investigate what cmake can do for package output
           # to make this cleaner in the future
           WORK_DIR=$(pwd)
-          PACKAGE_NAME=$(ls ${WORK_DIR}/Performous*-Linux.*)
-          PACKAGE_PREFIX=$(echo ${PACKAGE_NAME} | sed 's/.\{4\}$//' )
-          PACKAGE_SUFFIX=$(echo ${PACKAGE_NAME} | sed 's/^.*\(.\{4\}\)/\1/')
-          NEW_PACKAGE_NAME="${PACKAGE_PREFIX}-${ID}_${VERSION_ID}${PACKAGE_SUFFIX}"
-          mv ${PACKAGE_NAME} ${NEW_PACKAGE_NAME}
+          PACKAGE_PATH=$(ls ${WORK_DIR}/Performous*-Linux.*)
+          PACKAGE_NAME=$(echo ${PACKAGE_PATH} | sed 's/.\{18\}$//')
+          PACKAGE_SUFFIX=$(echo ${PACKAGE_PATH} | sed 's/^.*\(.\{4\}\)/\1/')
+          PACKAGE_VERSION=${{ needs.determine_version.outputs.complete_version }}
+          NEW_PACKAGE_NAME="${PACKAGE_NAME}-${PACKAGE_VERSION}-${ID}_${VERSION_ID}${PACKAGE_SUFFIX}"
+          mv ${PACKAGE_PATH} ${NEW_PACKAGE_NAME}
           ARTIFACT_NAME=$( echo ${NEW_PACKAGE_NAME} | rev | cut -d '/' -f1 | rev)
           echo "ARTIFACT_PATH=${NEW_PACKAGE_NAME}" >> ${GITHUB_ENV}
           echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> ${GITHUB_ENV} 
@@ -170,9 +205,9 @@ jobs:
 
   # Create the MacOS dmg
   MacOS_Packages:
-    #if: ${{ false }}
+    if: ${{ false }}
     name: Create MacOS dmg
-    needs: create_release
+    needs: determine_version
     runs-on: macos-latest
     steps:
       - name: Checkout Git
@@ -194,12 +229,21 @@ jobs:
           cd osx-utils
           chmod +x ./performous-app-build.sh
           ./performous-app-build.sh
-          echo "ARTIFACT_PATH=$(pwd)/Performous.dmg" >> ${GITHUB_ENV}
+          WORK_DIR=$(pwd)
+          PACKAGE_PATH=$(ls ${WORK_DIR}/Performous.*)
+          PACKAGE_NAME=$(echo ${PACKAGE_PATH} | sed 's/.\{4\}$//')
+          PACKAGE_SUFFIX=$(echo ${PACKAGE_PATH} | sed 's/^.*\(.\{4\}\)/\1/')
+          PACKAGE_VERSION=${{ needs.determine_version.outputs.complete_version }}
+          NEW_PACKAGE_NAME="${PACKAGE_NAME}-${PACKAGE_VERSION}${PACKAGE_SUFFIX}"
+          mv ${PACKAGE_PATH} ${NEW_PACKAGE_NAME}
+          ARTIFACT_NAME=$( echo ${NEW_PACKAGE_NAME} | rev | cut -d '/' -f1 | rev)
+          echo "ARTIFACT_PATH=${NEW_PACKAGE_NAME}" >> ${GITHUB_ENV}
+          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> ${GITHUB_ENV}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: Performous.dmg
+          name: ${{ env.ARTIFACT_NAME }}
           path: ${{ env.ARTIFACT_PATH }}
 
       - name: Upload release assets
@@ -211,12 +255,12 @@ jobs:
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: ${{ env.ARTIFACT_PATH }}
-          asset_name: Performous.dmg
+          asset_name: ${{ env.ARTIFACT_NAME }}
           asset_content_type: application/octet-stream
 
   Windows_Packages:
     name: Create Windows installer
-    needs: create_release
+    needs: determine_version
     runs-on: windows-latest
     #if: ${{ false }}
     steps:
@@ -236,6 +280,7 @@ jobs:
         uses: lukka/run-vcpkg@v10.2
         with:
           vcpkgGitCommitId: '71d274d7ce32d7f2508062a70e0a5ebe981319eb'
+          runVcpkgInstall: true
 
       - name: Run cmake to configure the project and build it
         uses: lukka/run-cmake@v10
@@ -246,16 +291,23 @@ jobs:
       - name: Create Installer
         id: package_performous_x64
         run: |
-           cd build/x64-debug
-           cpack -G NSIS x64-debug
-           Rename-Item $(Get-ChildItem -Filter '*win64.exe').Name -NewName "Performous-x64.exe"
+           cd build/x64-release
+           cpack -G NSIS x64-release
+           Rename-Item $(Get-ChildItem -Filter '*win64.exe').Name -NewName "Performous-${{ needs.determine_version.outputs.complete_version }}.exe"
            chcp 65001 #set code page to utf-8
-           echo ("ARTIFACT_PATH=${{ github.workspace }}/build/x64-debug/Performous-x64.exe") >> $env:GITHUB_ENV
-           echo ("ARTIFACT_FILENAME=Performous-x64.exe") >> $env:GITHUB_ENV
-      
+           echo ("ARTIFACT_PATH=${{ github.workspace }}/build/x64-release/Performous-${{ needs.determine_version.outputs.complete_version }}.exe") >> $env:GITHUB_ENV
+           echo ("ARTIFACT_FILENAME=Performous-${{ needs.determine_version.outputs.complete_version }}.exe") >> $env:GITHUB_ENV
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.ARTIFACT_FILENAME }}
+          path: ${{ env.ARTIFACT_PATH }}
+
       - name: Upload release assets
         id: upload_assets
         uses: actions/upload-release-asset@v1
+        if: ${{ github.event_name != 'pull_request' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
