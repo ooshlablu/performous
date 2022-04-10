@@ -213,3 +213,53 @@ jobs:
           asset_path: ${{ env.ARTIFACT_PATH }}
           asset_name: Performous.dmg
           asset_content_type: application/octet-stream
+
+  Windows_Packages:
+    name: Create Windows installer
+    needs: create_release
+    runs-on: windows-latest
+    #if: ${{ false }}
+    steps:
+      - name: Checkout Git
+        id: checkout_git
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Setup our dev environment
+        uses: ilammy/msvc-dev-cmd@v1.4.1
+
+      - name: Setup ninja cmake generator
+        uses: seanmiddleditch/gha-setup-ninja@master
+
+      - name: Download and build our dependencies using vcpkg
+        uses: lukka/run-vcpkg@v10.2
+        with:
+          vcpkgGitCommitId: '71d274d7ce32d7f2508062a70e0a5ebe981319eb'
+
+      - name: Run cmake to configure the project and build it
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: 'x64-release'
+          buildPreset: 'x64-release'
+
+      - name: Create Installer
+        id: package_performous_x64
+        run: |
+           cd build/x64-debug
+           cpack -G NSIS x64-debug
+           Rename-Item $(Get-ChildItem -Filter '*win64.exe').Name -NewName "Performous-x64.exe"
+           chcp 65001 #set code page to utf-8
+           echo ("ARTIFACT_PATH=${{ github.workspace }}/build/x64-debug/Performous-x64.exe") >> $env:GITHUB_ENV
+           echo ("ARTIFACT_FILENAME=Performous-x64.exe") >> $env:GITHUB_ENV
+      
+      - name: Upload release assets
+        id: upload_assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ${{ env.ARTIFACT_PATH }}
+          asset_name: ${{ env.ARTIFACT_FILENAME }}
+          asset_content_type: application/octet-stream
