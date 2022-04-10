@@ -167,3 +167,49 @@ jobs:
           asset_path: ${{ env.ARTIFACT_PATH }}
           asset_name: ${{ env.ARTIFACT_NAME }}
           asset_content_type: application/octet-stream
+
+  # Create the MacOS dmg
+  MacOS_Packages:
+    #if: ${{ false }}
+    name: Create MacOS dmg
+    needs: create_release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Git
+        id: checkout_git
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install Dependencies
+        id: install_deps
+        run: |
+           brew install boost cmake ffmpeg@4 help2man icu4c portaudio portmidi\
+             opencv libepoxy librsvg libxml++3 sdl2 dylibbundler asio fftw glm
+           brew link ffmpeg@4
+
+      - name: Build package
+        id: build_package
+        run: |
+          cd osx-utils
+          chmod +x ./performous-app-build.sh
+          ./performous-app-build.sh
+          echo "ARTIFACT_PATH=$(pwd)/Performous.dmg" >> ${GITHUB_ENV}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: Performous.dmg
+          path: ${{ env.ARTIFACT_PATH }}
+
+      - name: Upload release assets
+        id: upload_assets
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ${{ env.ARTIFACT_PATH }}
+          asset_name: Performous.dmg
+          asset_content_type: application/octet-stream
