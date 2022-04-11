@@ -164,9 +164,10 @@ jobs:
           echo "MASTER_ARTIFACT_PATH=${MASTER_NEW_PACKAGE_NAME}" >> ${GITHUB_ENV}
           echo "MASTER_ARTIFACT_NAME=${MASTER_ARTIFACT_NAME}" >> ${GITHUB_ENV} 
 
-      # Upload artifacts during each run
+      # Upload artifacts during pull-requests
       - name: Upload artifact
         uses: actions/upload-artifact@v3
+        if: ${{ github.event_name == 'pull_request' }}
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: ${{ env.ARTIFACT_PATH }}
@@ -236,6 +237,7 @@ jobs:
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
+        if: ${{ github.event_name == 'pull_request' }}
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: ${{ env.ARTIFACT_PATH }}
@@ -304,6 +306,7 @@ jobs:
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
+        if: ${{ github.event_name == 'pull_request' }}
         with:
           name: ${{ env.ARTIFACT_FILENAME }}
           path: ${{ env.ARTIFACT_PATH }}
