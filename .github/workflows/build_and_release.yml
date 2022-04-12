@@ -39,13 +39,13 @@ jobs:
         run: |
           git clone --recursive ${{ github.server_url }}/${{ github.repository }}
           cd performous
-          LATEST_TAG_VERSION=$(git describe --always --tags --abbrev=0 || echo 1.0.0)
-          LATEST_FULL_TAG_VERSION=$(git describe --always --tags || echo 1.0.0)
-          echo "::set-output name=latest_tag_version::$(git describe --always --tags --abbrev=0 || echo 1.0.0)"
-          echo "::set-output name=latest_full_tag_version::$(git describe --always --tags || echo 1.0.0)"
-          echo "::set-output name=version_major::$(cut -d '.' -f 1 <<< $(git describe --always --tags --abbrev=0 || echo 1.0.0))"
-          echo "::set-output name=version_minor::$(cut -d '.' -f 2 <<< $(git describe --always --tags --abbrev=0 || echo 1.0.0))"
-          echo "::set-output name=version_patch::$(cut -d '.' -f 3 <<< $(git describe --always --tags --abbrev=0 || echo 1.0.0))"
+          LATEST_TAG_VERSION=$(git describe --tags --abbrev=0 || echo 1.0.0)
+          LATEST_FULL_TAG_VERSION=$(git describe --tags || echo 1.0.0)
+          echo "::set-output name=latest_tag_version::$(git describe --tags --abbrev=0 || echo 1.0.0)"
+          echo "::set-output name=latest_full_tag_version::$(git describe --tags || echo 1.0.0)"
+          echo "::set-output name=version_major::$(cut -d '.' -f 1 <<< $(git describe --tags --abbrev=0 || echo 1.0.0))"
+          echo "::set-output name=version_minor::$(cut -d '.' -f 2 <<< $(git describe --tags --abbrev=0 || echo 1.0.0))"
+          echo "::set-output name=version_patch::$(cut -d '.' -f 3 <<< $(git describe --tags --abbrev=0 || echo 1.0.0))"
           echo "::set-output name=version_tweak::0"
           echo "::set-output name=complete_version::$(if [ $GITHUB_REF_TYPE == 'tag' ]; then echo $GITHUB_REF_NAME; elif [ $GITHUB_REF_TYPE == 'branch' ] && [ $GITHUB_REF_NAME == 'master' ]; then echo $LATEST_FULL_TAG_VERSION-beta; elif [ $GITHUB_REF_TYPE == 'branch' ] && [ $GITHUB_REF_NAME != 'master' ]; then echo $LATEST_TAG_VERSION-${{github.event.pull_request.number}}-${GITHUB_SHA::7}-alpha; fi)"
           rm -rf performous
@@ -112,6 +112,8 @@ jobs:
         id: checkout_git
         run: |
           git clone --recursive ${{ github.server_url }}/${{ github.repository }}
+          cd performous
+          git checkout ${{ github.sha }}
 
       - name: Build package
         id: build_package
@@ -136,15 +138,17 @@ jobs:
           esac
 
           PACKAGE_VERSION=${{ needs.determine_version.outputs.complete_version }}
+          echo $PACKAGE_VERSION
 
           # Build the Packages
           mkdir build_cmake
           cd build_cmake
-          cmake ${EXTRA_CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release\
-            -DPROJECT_VERSION=$PACKAGE_VERSION\
-            -DENABLE_WEBSERVER=ON\
-            -DCMAKE_VERBOSE_MAKEFILE=1\
+          cmake ${EXTRA_CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release \
+            -DPERFORMOUS_VERSION:STRING=$PACKAGE_VERSION \
+            -DENABLE_WEBSERVER=ON \
+            -DCMAKE_VERBOSE_MAKEFILE=1 \
             -DENABLE_WEBCAM=ON ..
+          cat CMakeCache.txt
           CPU_CORES=$(nproc --all)
           make -j${CPU_CORES}
           cpack -G ${PACKAGE_TYPE}
@@ -199,7 +203,7 @@ jobs:
 
   # Create the MacOS dmg
   MacOS_Packages:
-    #if: ${{ false }}
+    if: ${{ false }}
     name: Create MacOS dmg
     needs:
       - determine_version
@@ -272,7 +276,7 @@ jobs:
       - determine_version
       - create_release
     runs-on: windows-latest
-    #if: ${{ false }}
+    if: ${{ false }}
     steps:
       - name: Checkout Git
         id: checkout_git
@@ -296,6 +300,7 @@ jobs:
         with:
           configurePreset: 'x64-release'
           buildPreset: 'x64-release'
+          cmakeListsTxtPath: '${{ github.workspace }}/performous/CMakeLists.txt'
 
       - name: Create Installer
         id: package_performous_x64
@@ -305,9 +310,9 @@ jobs:
            Copy-Item $(Get-ChildItem -Filter '*win64.exe').Name "Performous-latest.exe"
            Rename-Item $(Get-ChildItem -Filter '*win64.exe').Name -NewName "Performous-${{ needs.determine_version.outputs.complete_version }}.exe"
            chcp 65001 #set code page to utf-8
-           echo ("ARTIFACT_PATH=${{ github.workspace }}/build/x64-release/Performous-${{ needs.determine_version.outputs.complete_version }}.exe") >> $env:GITHUB_ENV
+           echo ("ARTIFACT_PATH=${{ github.workspace }}/performous/build/x64-release/Performous-${{ needs.determine_version.outputs.complete_version }}.exe") >> $env:GITHUB_ENV
            echo ("ARTIFACT_FILENAME=Performous-${{ needs.determine_version.outputs.complete_version }}.exe") >> $env:GITHUB_ENV
-           echo ("MASTER_ARTIFACT_PATH=${{ github.workspace }}/build/x64-release/Performous-latest.exe") >> $env:GITHUB_ENV
+           echo ("MASTER_ARTIFACT_PATH=${{ github.workspace }}/performous/build/x64-release/Performous-latest.exe") >> $env:GITHUB_ENV
            echo ("MASTER_ARTIFACT_FILENAME=Performous-latest.exe") >> $env:GITHUB_ENV
 
       - name: Upload artifacts
