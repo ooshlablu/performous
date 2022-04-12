@@ -37,7 +37,7 @@ jobs:
       - name: Determine the complete version
         id: versioning
         run: |
-          git clone --recursive https://github.com/performous/performous
+          git clone --recursive ${{ github.repositoryUrl }}
           cd performous
           LATEST_TAG_VERSION=$(git describe --always --tags --abbrev=0 || echo 1.0.0)
           LATEST_FULL_TAG_VERSION=$(git describe --always --tags || echo 1.0.0)
@@ -58,7 +58,7 @@ jobs:
     # Make sure the output variable for this step is set so it
     # can be consumed by later build steps
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url || steps.create_beta_release.outputs.upload_url }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Create the Main release
         id: create_release
@@ -74,14 +74,16 @@ jobs:
 
   # Create the Linux Packages
   # This is done in containers provided by
-  # https://github.com/performous/performous-docker since
+  # ${{ github.repositoryUrl }}-docker since
   # github actions provides only Ubuntu
   Linux_Packages:
     #if: ${{ false }}
     # The upload step needs the release to be created first so it
     # can access the upload_url output
     name: Create Linux packages
-    needs: determine_version
+    needs:
+      - determine_version
+      - create_release
     # Ubuntu required for Linux containers
     runs-on: ubuntu-latest
     # The docker registry here is hard-coded because it it publicly visible
@@ -97,7 +99,7 @@ jobs:
       matrix:
         os:
           # Images must be added to 
-          # https://github.com/performous/performous-docker with a successful
+          # ${{ github.repositoryUrl }}-docker with a successful
           # run on master before they can be used here
           - ubuntu18.04
           - ubuntu20.04
@@ -108,13 +110,13 @@ jobs:
     steps:
       - name: Checkout Git
         id: checkout_git
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
+        run: |
+          git clone --recursive ${{ github.repositoryUrl }}
 
       - name: Build package
         id: build_package
         run: |
+          cd performous
           # Pull in OS variables to figure out options later
           . /etc/os-release
 
@@ -133,10 +135,13 @@ jobs:
           PACKAGE_TYPE='TAR';;
           esac
 
+          PACKAGE_VERSION=${{ needs.determine_version.outputs.complete_version }}
+
           # Build the Packages
           mkdir build_cmake
           cd build_cmake
           cmake ${EXTRA_CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release\
+            -DPROJECT_VERSION=$PACKAGE_VERSION\
             -DENABLE_WEBSERVER=ON\
             -DCMAKE_VERBOSE_MAKEFILE=1\
             -DENABLE_WEBCAM=ON ..
@@ -150,9 +155,8 @@ jobs:
           # to make this cleaner in the future
           WORK_DIR=$(pwd)
           PACKAGE_PATH=$(ls ${WORK_DIR}/Performous*-Linux.*)
-          PACKAGE_NAME=$(echo ${PACKAGE_PATH} | sed 's/.\{18\}$//')
+          PACKAGE_NAME=$(echo ${PACKAGE_PATH} | sed 's/\(Performous\).*$/\1/')
           PACKAGE_SUFFIX=$(echo ${PACKAGE_PATH} | sed 's/^.*\(.\{4\}\)/\1/')
-          PACKAGE_VERSION=${{ needs.determine_version.outputs.complete_version }}
           NEW_PACKAGE_NAME="${PACKAGE_NAME}-${PACKAGE_VERSION}-${ID}_${VERSION_ID}${PACKAGE_SUFFIX}"
           MASTER_NEW_PACKAGE_NAME="${PACKAGE_NAME}-latest-${ID}_${VERSION_ID}${PACKAGE_SUFFIX}"
           cp ${PACKAGE_PATH} ${MASTER_NEW_PACKAGE_NAME}
@@ -197,14 +201,15 @@ jobs:
   MacOS_Packages:
     #if: ${{ false }}
     name: Create MacOS dmg
-    needs: determine_version
+    needs:
+      - determine_version
+      - create_release
     runs-on: macos-latest
     steps:
       - name: Checkout Git
         id: checkout_git
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
+        run: |
+          git clone --recursive ${{ github.repositoryUrl }}
 
       - name: Install Dependencies
         id: install_deps
@@ -216,12 +221,12 @@ jobs:
       - name: Build package
         id: build_package
         run: |
-          cd osx-utils
+          cd performous/osx-utils
           chmod +x ./performous-app-build.sh
           ./performous-app-build.sh
           WORK_DIR=$(pwd)
           PACKAGE_PATH=$(ls ${WORK_DIR}/Performous.*)
-          PACKAGE_NAME=$(echo ${PACKAGE_PATH} | sed 's/.\{4\}$//')
+          PACKAGE_NAME=$(echo ${PACKAGE_PATH} | sed 's/\(Performous\).*$/\1/')
           PACKAGE_SUFFIX=$(echo ${PACKAGE_PATH} | sed 's/^.*\(.\{4\}\)/\1/')
           PACKAGE_VERSION=${{ needs.determine_version.outputs.complete_version }}
           NEW_PACKAGE_NAME="${PACKAGE_NAME}-${PACKAGE_VERSION}${PACKAGE_SUFFIX}"
@@ -263,15 +268,16 @@ jobs:
 
   Windows_Packages:
     name: Create Windows installer
-    needs: determine_version
+    needs:
+      - determine_version
+      - create_release
     runs-on: windows-latest
     #if: ${{ false }}
     steps:
       - name: Checkout Git
         id: checkout_git
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
+        run: |
+          git clone --recursive ${{ github.repositoryUrl }}
       
       - name: Setup our dev environment
         uses: ilammy/msvc-dev-cmd@v1.4.1
@@ -294,7 +300,7 @@ jobs:
       - name: Create Installer
         id: package_performous_x64
         run: |
-           cd build/x64-release
+           cd performous/build/x64-release
            cpack -G NSIS x64-release
            Copy-Item $(Get-ChildItem -Filter '*win64.exe').Name "Performous-latest.exe"
            Rename-Item $(Get-ChildItem -Filter '*win64.exe').Name -NewName "Performous-${{ needs.determine_version.outputs.complete_version }}.exe"
