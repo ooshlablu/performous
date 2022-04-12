@@ -37,7 +37,7 @@ jobs:
       - name: Determine the complete version
         id: versioning
         run: |
-          git clone --recursive ${{ github.repositoryUrl }}
+          git clone --recursive ${{ github.server_url }}/${{ github.repository }}
           cd performous
           LATEST_TAG_VERSION=$(git describe --always --tags --abbrev=0 || echo 1.0.0)
           LATEST_FULL_TAG_VERSION=$(git describe --always --tags || echo 1.0.0)
@@ -74,7 +74,7 @@ jobs:
 
   # Create the Linux Packages
   # This is done in containers provided by
-  # ${{ github.repositoryUrl }}-docker since
+  # ${{ github.server_url }}/${{ github.repository }}-docker since
   # github actions provides only Ubuntu
   Linux_Packages:
     #if: ${{ false }}
@@ -99,7 +99,7 @@ jobs:
       matrix:
         os:
           # Images must be added to 
-          # ${{ github.repositoryUrl }}-docker with a successful
+          # ${{ github.server_url }}/${{ github.repository }}-docker with a successful
           # run on master before they can be used here
           - ubuntu18.04
           - ubuntu20.04
@@ -111,7 +111,7 @@ jobs:
       - name: Checkout Git
         id: checkout_git
         run: |
-          git clone --recursive ${{ github.repositoryUrl }}
+          git clone --recursive ${{ github.server_url }}/${{ github.repository }}
 
       - name: Build package
         id: build_package
@@ -209,7 +209,7 @@ jobs:
       - name: Checkout Git
         id: checkout_git
         run: |
-          git clone --recursive ${{ github.repositoryUrl }}
+          git clone --recursive ${{ github.server_url }}/${{ github.repository }}
 
       - name: Install Dependencies
         id: install_deps
@@ -277,7 +277,7 @@ jobs:
       - name: Checkout Git
         id: checkout_git
         run: |
-          git clone --recursive ${{ github.repositoryUrl }}
+          git clone --recursive ${{ github.server_url }}/${{ github.repository }}
       
       - name: Setup our dev environment
         uses: ilammy/msvc-dev-cmd@v1.4.1
