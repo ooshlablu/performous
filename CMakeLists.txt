@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
-if(NOT PERFORMOUS_VERSION)
+if(NOT PROJECT_VERSION)
     message("No project version specified. Determining latest tag..")
 	include(GetGitRevisionDescription)
 	git_describe(PROJECT_VERSION --tags)
@@ -14,13 +14,10 @@ if(NOT PERFORMOUS_VERSION)
 		message("No project version found. Falling back onto default versioning strategy.")
 		set(PROJECT_VERSION "1.2+")
 	endif()
-else()
-	message("Pizza ${PERFORMOUS_VERSION}")
-	set(PROJECT_VERSION "${PERFORMOUS_VERSION}")
 endif()
 string(TIMESTAMP YEAR "%Y")
 
-message("Building ${PROJECT_NAME} ${PROJECT_VERSION} BLA ${PERFORMOUS_VERSION}")
+message("Building ${PROJECT_NAME} ${PROJECT_VERSION}")
 
 # Avoid source tree pollution
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
