@@ -82,7 +82,7 @@ jobs:
   # ${{ github.server_url }}/${{ github.repository }}-docker since
   # github actions provides only Ubuntu
   Linux_Packages:
-    if: ${{ false }}
+    #if: ${{ false }}
     # The upload step needs the release to be created first so it
     # can access the upload_url output
     name: Create Linux packages
@@ -212,7 +212,7 @@ jobs:
 
   # Create the MacOS dmg
   MacOS_Packages:
-    if: ${{ false }}
+    #if: ${{ false }}
     name: Create MacOS dmg
     needs:
       - determine_version
@@ -241,7 +241,7 @@ jobs:
         id: build_package
         run: |
           cd performous/osx-utils
-          PACKAGE_VERSION=${{ needs.determine_version.outputs.complete_version }}
+          export PACKAGE_VERSION=${{ needs.determine_version.outputs.complete_version }}
           echo $PACKAGE_VERSION
           chmod +x ./performous-app-build.sh
           ./performous-app-build.sh
@@ -292,7 +292,7 @@ jobs:
       - determine_version
       - create_release
     runs-on: windows-latest
-    #if: ${{ false }}
+    if: ${{ false }}
     steps:
       - name: Checkout Git
         id: checkout_git

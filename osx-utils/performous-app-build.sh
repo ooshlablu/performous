@@ -72,6 +72,12 @@ MAKE_JOBS=$(sysctl -n hw.ncpu)
 test -z ${CC} && CCPATH="/usr/bin/clang" # Path to system Clang, change if you want another compiler.
 test -z ${CXX} && CXXPATH="/usr/bin/clang++" # Path to system Clang, change if you want another compiler.
 
+if [ ${PACKAGE_VERSION} ]; then
+  PACKAGE_MAJOR=$(echo ${PACKAGE_VERSION} | cut -d'.' -f1)
+  PACKAGE_MINOR=$(echo ${PACKAGE_VERSION} | cut -d'.' -f2)  
+  EXTRA_CMAKE_ARGS="-DMACOSX_BUNDLE_BUNDLE_VERSION='${PACKAGE_VERSION}' -DMACOSX_BUNDLE_SHORT_VERSION_STRING='${PACKAGE_MAJOR}.${PACKAGE_MINOR}' -DMACOSX_BUNDLE_LONG_VERSION_STRING='${PACKAGE_VERSION}' "
+fi
+
 function exists {
 	if hash "$1" 2>/dev/null
 		then
@@ -197,7 +203,7 @@ function main {
 			mkdir -p "${TEMPDIR}"
 	fi
 	
-	cmake \
+	cmake ${EXTRA_CMAKE_ARGS} \
 	  -DCMAKE_INSTALL_PREFIX="$TEMPDIR" \
 	  -DCMAKE_PREFIX_PATH="${PREFIXDIR}" \
 	  -DCMAKE_BUILD_TYPE="${RELTYPE}" \
