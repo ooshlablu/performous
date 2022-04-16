@@ -153,11 +153,10 @@ jobs:
           mkdir build_cmake
           cd build_cmake
           cmake ${EXTRA_CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release \
-            -DPROJECT_VERSION:STRING=$PACKAGE_VERSION \
+            -DPERFORMOUS_VERSION=$PACKAGE_VERSION \
             -DENABLE_WEBSERVER=ON \
             -DCMAKE_VERBOSE_MAKEFILE=1 \
             -DENABLE_WEBCAM=ON ..
-          cat CMakeCache.txt
           CPU_CORES=$(nproc --all)
           make -j${CPU_CORES}
           cpack -G ${PACKAGE_TYPE}
@@ -314,7 +313,7 @@ jobs:
       - determine_version
       - create_release
     runs-on: windows-latest
-    if: ${{ false }}
+    #if: ${{ false }}
     steps:
       - name: Checkout Git
         id: checkout_git
@@ -341,17 +340,13 @@ jobs:
           runVcpkgInstall: true
       
       - name: Run cmake to configure the project and build it
+        env:
+          PERFORMOUS_VERSION: ${{ needs.determine_version.outputs.complete_version }}
         run: |
           cd ${{ github.workspace }}/performous
+          echo $PERFORMOUS_VERSION
           cmake --preset "x64-release"
           cmake --build --preset "x64-release"
-
-      #- name: Run cmake to configure the project and build it
-      #  uses: lukka/run-cmake@v10
-      #  with:
-      #    configurePreset: 'x64-release'
-      #    buildPreset: 'x64-release'
-      #    cmakeListsTxtPath: '${{ github.workspace }}/performous/CMakeLists.txt'
 
       - name: Create Installer
         id: package_performous_x64

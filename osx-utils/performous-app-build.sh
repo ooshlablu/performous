@@ -228,6 +228,7 @@ function main {
 	  -DLOCALE_DIR="Resources/Locales" \
 	  -DCMAKE_CXX_FLAGS="-Wall -Wextra" \
 	  -DCMAKE_OSX_ARCHITECTURES="x86_64" \
+	  -DPERFORMOUS_VERSION="${PACKAGE_VERSION}" \
 	  -B "${PERFORMOUS_SOURCE}/build" \
 	  -S "${PERFORMOUS_SOURCE}"
 	
