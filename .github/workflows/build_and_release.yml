@@ -230,12 +230,34 @@ jobs:
             git checkout ${{ github.sha }}
           fi
 
+      # We'll see!
+      #- name: Cache Dependencies
+      #  uses: actions/cache@v3
+      #  id: cache_deps
+      #  with:
+      #    path: /usr/local
+      #    key: ${{ runner.os }}-${{ hashFiles('**/ffmpeg@4/**') }}
+
+      # brew fetch runs downloads in parallel, which is faster
+      # than letting install do it
+      - name: Fetch Dependencies
+        id: fetch_deps
+        run: |
+          brew fetch --deps boost cmake ffmpeg@4 help2man icu4c portaudio\
+            portmidi opencv libepoxy librsvg libxml++3 sdl2 dylibbundler\
+            asio fftw glm
+
       - name: Install Dependencies
         id: install_deps
+        #if: steps.cache_deps.outputs.cache-hit != 'true'
         run: |
            brew install boost cmake ffmpeg@4 help2man icu4c portaudio portmidi\
              opencv libepoxy librsvg libxml++3 sdl2 dylibbundler asio fftw glm
            brew link ffmpeg@4
+
+      #- name: Refresh Brew
+      #  id: refresh_brew
+      #  run: brew readall
 
       - name: Build package
         id: build_package
