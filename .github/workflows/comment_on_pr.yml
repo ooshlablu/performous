@@ -35,8 +35,8 @@ jobs:
             }
             const {owner, repo} = context.repo;
             const run_id = '${{github.event.workflow_run.id}}';
-            const test = ${{ toJSON(github.event.workflow_run) }};
-            const test2 = ${{ toJSON(github.event.workflow_run.event) }};
+            const test = '${{ toJSON(github.event.workflow_run) }}';
+            const test2 = '${{ toJSON(github.event.workflow_run.event) }}';
             #const pull_requests = ${{ toJSON(github.event.workflow_run.pull_requests) }};
             #if (!pull_requests.length) {
             #  return core.error("This workflow doesn't match any pull requests!");
