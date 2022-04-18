@@ -202,6 +202,7 @@ jobs:
 
   # Create the MacOS dmg
   MacOS_Packages:
+    if: ${{ false }}
     name: Create MacOS dmg
     needs:
       - determine_version
@@ -285,6 +286,7 @@ jobs:
 
   # Create the Windows installer
   Windows_Packages:
+    if: ${{ false }}
     name: Create Windows installer
     needs:
       - determine_version
