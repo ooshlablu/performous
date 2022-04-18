@@ -9,6 +9,12 @@ jobs:
     #if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      - name: debug
+        id: debug
+        run: |
+          echo '${{ toJSON(github.event.workflow_run) }}'
+          echo '${{ toJSON(github.event.workflow_run.event) }}'
+
       - uses: actions/github-script@v5
         with:
           # This snippet is public-domain, taken from
