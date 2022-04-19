@@ -6,7 +6,7 @@ on:
 jobs:
   pr_comment:
     name: Comment on PR
-    #if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: debug
