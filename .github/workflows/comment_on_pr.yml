@@ -13,10 +13,15 @@ jobs:
         run: |
           # Install jq to do some processing
           # sudo apt install jq
-          
+          echo 1
+          curl 'https://api.github.com/search/issues?q=${{ github.event.workflow_run.head_commit.id }}'
+          echo 2
           PR_RAW=$(curl 'https://api.github.com/search/issues?q=${{ github.event.workflow_run.head_commit.id }}')
+          echo 3
           echo $PR_RAW | jq '.items[].pull_request.url' | grep -oE [0-9]+
+          echo 4
           PR_NUM=$(echo $PR_RAW | jq '.items[].pull_request.url' | grep -oE [0-9]+)
+          echo 5
           echo "PR_NUM=${PR_NUM}" >> ${GITHUB_ENV}
 
       - name: debug
