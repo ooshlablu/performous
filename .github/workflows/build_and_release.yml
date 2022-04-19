@@ -78,7 +78,7 @@ jobs:
   # https://github.com/performous/performous-docker since
   # github actions provides only Ubuntu
   Linux_Packages:
-    if: ${{ false }}
+    #if: ${{ false }}
     # The upload step needs the release to be created first so it
     # can access the upload_url output. This step also needs the output from
     # the version dteremination job to name things correctly.
