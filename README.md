@@ -23,4 +23,4 @@ Latest builds
 - [Linux - Ubuntu 22.04](https://nightly.link/performous/performous/workflows/build_and_release/master/Performous-latest-ubuntu_22.04.deb)
 - [Linux - Fedora 33](https://nightly.link/performous/performous/workflows/build_and_release/master/Performous-latest-fedora_33.rpm)
 - [Linux - Fedora 34](https://nightly.link/performous/performous/workflows/build_and_release/master/Performous-latest-fedora_34.rpm)
-- [Linux - Fedora 35](https://nightly.link/performous/performous/workflows/build_and_release/master/Performous-latest-fedora_35.rpm) 
+- [Linux - Fedora 35](https://nightly.link/performous/performous/workflows/build_and_release/master/Performous-latest-fedora_35.rpm)
