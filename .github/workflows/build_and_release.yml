@@ -6,6 +6,7 @@ on:
   # all PRs, and release tags 
   push:
     branches:
+      - '*'
       - master
       - '[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+'
     tags:
@@ -17,6 +18,10 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+
+#env:
+#  DOCKER_REGISTRY: ghcr.io
+#  DOCKER_REPO_NAME: ${{ github.repository_owner }}
 
 # Note: entire jobs or sections can be disabled by adding
 # if: ${{ false }} to the definition column
@@ -33,8 +38,6 @@ jobs:
       version_patch: ${{ steps.versioning.outputs.version_patch }}
       version_tweak: ${{ steps.versioning.outputs.version_tweak }}
       complete_version: ${{ steps.versioning.outputs.complete_version }}
-      build_docker_containers: ${{ steps.versioning.outputs.build_docker_containers }}
-      docker_branch_name: ${{ steps.versioning.outputs.docker_branch_name }}
     steps:
       - name: Determine the complete version
         id: versioning
@@ -53,7 +56,6 @@ jobs:
           echo "version_tweak=0" >> $GITHUB_OUTPUT
           echo "complete_version=$(if [ $GITHUB_REF_TYPE = 'tag' ]; then echo $GITHUB_REF_NAME; elif [ $GITHUB_REF_TYPE = 'branch' ] && [ $GITHUB_REF_NAME = 'master' ]; then echo $LATEST_FULL_TAG_VERSION-beta; elif [ $GITHUB_REF_TYPE = 'branch' ] && [ $GITHUB_REF_NAME != 'master' ]; then echo $LATEST_TAG_VERSION-${{github.event.pull_request.number}}-${GITHUB_SHA::7}-alpha; fi)" >> $GITHUB_OUTPUT
 
-
   determine_docker_version:
     name: Determine whether to build the containers or not
     runs-on: ubuntu-latest
@@ -63,7 +65,7 @@ jobs:
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Determine version
         id: version
@@ -91,7 +93,7 @@ jobs:
   # Pull in the docker build workflow
   build_docker:
     name: Build the docker containers
-    if: ${{ needs.determine_docker_version.outputs.build_docker_containers }}
+    if: ${{ needs.determine_docker_version.outputs.build_docker_containers == true }}
     uses: ./.github/workflows/docker.yml
     needs:
       - determine_docker_version
@@ -125,24 +127,28 @@ jobs:
     # can access the upload_url output. This step also needs the output from
     # the version dteremination job to name things correctly.
     name: Create Linux packages
+    # This is needed to make the build job run even if the containers haven't
+    # been rebuilt. Skipping the container build would skip this also otherwise.
+    if: ${{ !failure() }}
     needs:
       - build_docker
+      - determine_docker_version
       - determine_version
       - create_release
     # Ubuntu required for Linux containers
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/deps:${{ matrix.os }}-${{ needs.determine_version.outputs.docker_branch_name }}
+      image: ghcr.io/${{ github.repository_owner }}/deps:${{ matrix.os }}-${{ needs.determine_docker_version.outputs.docker_branch_name }}
       credentials:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
-
     strategy:
       matrix:
         os:
-          # Images must be added to 
-          # https://github.com/performous/performous-docker with
-          # a successful run on master before they can be used here
+          # To add new OS's here, make sure they are added in the docker/
+          # directory and the .github/workflows/docker.yml workflow.
+          # Also make sure to add these OS's to the cleanup_containers job
+          # below this job
           - ubuntu20.04
           - ubuntu22.04
           - fedora34
@@ -253,12 +259,7 @@ jobs:
         shell: bash
         run: |
           . /etc/os-release
-          if ([ "${ID}" = "ubuntu" ] || ([ "${ID}" = "fedora" ])); then
-            echo "Run unit tests"
-            cd performous/build_cmake/testing
-            ./performous_test --gtest_filter=UnitTest*
-          fi
-          if ([ "${ID}" = "debian" ] && ([ "${VERSION_ID}" = "11" ]) ); then
+          if ([ "${ID}" = "ubuntu" ] || [ "${ID}" = "fedora" ] || ([ "${ID}" = "debian" ] && [ "${VERSION_ID}" = "11" ])); then
             echo "Run unit tests"
             cd performous/build_cmake/testing
             ./performous_test --gtest_filter=UnitTest*
@@ -269,17 +270,40 @@ jobs:
         shell: bash
         run: |
           . /etc/os-release
-          if ([ "${ID}" = "ubuntu" ] || ([ "${ID}" = "fedora" ])); then
+          if ([ "${ID}" = "ubuntu" ] || [ "${ID}" = "fedora" ] || ([ "${ID}" = "debian" ] && [ "${VERSION_ID}" = "11" ])); then
             echo "Run unit tests"
             cd performous/build_cmake
             make test
           fi
-          if ([ "${ID}" = "debian" ] && ([ "${VERSION_ID}" = "11" ]) ); then
-            echo "Run unit tests"
-            cd performous/build_cmake
-            make test
-          fi
-          
+
+#  cleanup_containers:
+#    name: Remove images built to test branches
+#    if: ${{ needs.determine_docker_version.outputs.build_docker_containers && needs.determine_version.outputs.docker_branch_name != 'master' }}
+#    runs-on: ubuntu-latest
+#    needs:
+#      - build_docker
+#      - determine_docker_version
+#      - Linux_Packages      
+#    strategy:
+#      matrix:
+#        os:
+#          # This list should match the one in the Linux_Packages job above
+#          - ubuntu20.04
+#          - ubuntu22.04
+#          - fedora34
+#          - fedora35
+#          - fedora36
+#          - debian10
+#          - debian11      
+#    steps:
+#      - name: Delete image
+#        uses: bots-house/ghcr-delete-image-action@v1.0.0
+#        with:
+#          owner: ${{ github.repository_owner }}
+#          name: deps
+#          token: ${{ secrets.GITHUB_TOKEN }}
+#          tag: ${{ matrix.os }}-${{ needs.determine_docker_version.outputs.docker_branch_name }}
+
   # Create the AppImage
   AppImage:
     name: Create the AppImage

@@ -1,14 +1,6 @@
-## You will need to make the repository you are pushing to Publicly Visible
-## to use the actions in the performous repo without modification
 name: Build Containers
 
 on:
-  #push:
-  #  branches:
-  #    - "*"
-  # On anything pull request related
-  #pull_request:
-
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -25,6 +17,7 @@ env:
 
 jobs:
   branch_name:
+    name: Determine the branch name
     runs-on: ubuntu-latest
     outputs:
       branch_name: ${{ steps.branch_name.outputs.branch_name }}
@@ -77,7 +70,7 @@ jobs:
           context: docker/
           push: true
           file: ./docker/Dockerfile.ubuntu
-          tags: ghcr.io/${{ env.REPO_NAME }}/deps:ubuntu${{ matrix.os }}-${{ needs.branch_name.outputs.branch_name }}
+          tags: ${{ env.REGISTRY }}/${{ env.REPO_NAME }}/deps:ubuntu${{ matrix.os }}-${{ needs.branch_name.outputs.branch_name }}
           build-args: OS_VERSION=${{ matrix.os }}
 
   debian:
@@ -119,7 +112,7 @@ jobs:
           context: docker/
           file: ./docker/Dockerfile.debian
           push: true
-          tags: ghcr.io/${{ env.REPO_NAME }}/deps:debian${{ matrix.os }}-${{ needs.branch_name.outputs.branch_name }}
+          tags: ${{ env.REGISTRY }}/${{ env.REPO_NAME }}/deps:debian${{ matrix.os }}-${{ needs.branch_name.outputs.branch_name }}
           build-args: OS_VERSION=${{ matrix.os }}
 
   fedora:
@@ -162,5 +155,5 @@ jobs:
           context: docker/
           file: ./docker/Dockerfile.fedora
           push: true
-          tags: ghcr.io/${{ env.REPO_NAME }}/deps:fedora${{ matrix.os }}-${{ needs.branch_name.outputs.branch_name }}
+          tags: ${{ env.REGISTRY }}/${{ env.REPO_NAME }}/deps:fedora${{ matrix.os }}-${{ needs.branch_name.outputs.branch_name }}
           build-args: OS_VERSION=${{ matrix.os }}
