@@ -82,7 +82,11 @@ jobs:
           # If we are building the containers this run and are on a branch,
           # we should use those. Otherwise, use the ones from master
           if [ ${BUILD_DOCKER} ]; then
-            DOCKER_BRANCH_NAME="$(git branch --show-current)"
+            if [ '${{ github.event_name }}' = 'pull_request' ]; then
+              DOCKER_BRANCH_NAME="PR-$( echo ${{ github.ref }} | cut -d '/' -f3)"
+            else
+              DOCKER_BRANCH_NAME="$(git branch --show-current)"
+            fi
           else
             DOCKER_BRANCH_NAME="master"
           fi
@@ -92,7 +96,7 @@ jobs:
   # Pull in the docker build workflow
   build_docker:
     name: Build the docker containers
-    if: ${{ needs.determine_docker_version.outputs.build_docker_containers == true }}
+    if: ${{ needs.determine_docker_version.outputs.build_docker_containers == 'true' }}
     uses: ./.github/workflows/docker.yml
     needs:
       - determine_docker_version

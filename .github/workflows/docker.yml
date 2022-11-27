@@ -29,7 +29,12 @@ jobs:
       - name: Determine the branch name
         id: branch_name
         run: |
-          echo "branch_name=$(git branch --show-current)" >> $GITHUB_OUTPUT
+          if [ '${{ github.event_name }}' = 'pull_request' ]; then
+            DOCKER_BRANCH_NAME="PR-$( echo ${{ github.ref }} | cut -d '/' -f3)"
+          else
+            DOCKER_BRANCH_NAME="$(git branch --show-current)"
+          fi
+          echo "branch_name=${DOCKER_BRANCH_NAME}" >> $GITHUB_OUTPUT
 
   ubuntu:
     runs-on: ubuntu-latest
