@@ -1,9 +1,6 @@
 name: Build Linux Packages
 
 on:
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
   # Run on a schedule to get monthly updates
   schedule:
     - cron: "* * 28 * *"
@@ -13,12 +10,12 @@ on:
     inputs:
       package_complete_version:
         description: 'The output of the complete_version of the "determine_version" job from the build_and_release.yml workflow'
-        default: 'if-you-see-this-string-something-is-wrong'
+        #default: 'if-you-see-this-string-something-is-wrong'
         required: true
         type: string
       release_upload_url:
         description: 'The output of the "create_release" job from the build_and_release.yml workflow'
-        default: 'if-you-see-this-string-something-is-wrong'
+        #default: 'if-you-see-this-string-something-is-wrong'
         required: true
         type: string
 
@@ -27,16 +24,12 @@ env:
   REPO_NAME: ${{ github.repository_owner }}
 
 jobs:
-  # This will be used by the Linux jobs to determine if what version of the containers
-  # to use, and build them if necessary. The containers will only be built if there
-  # are changes to the Dockerfiles or to this workflow, otherwise the containers from
-  # master will be used to build the packages.
+  # Decide if we need to build the containers on this run
   determine_docker_version:
     name: Determine whether to build the containers or not
     runs-on: ubuntu-latest
     outputs:
       build_docker_containers: ${{ steps.version.outputs.build_docker_containers }}
-      docker_branch_name: ${{ steps.version.outputs.docker_branch_name }}
     steps:
       - name: Checkout
         id: checkout
@@ -58,18 +51,12 @@ jobs:
           echo ${GIT_OUTPUT}
           if [ $(echo ${GIT_OUTPUT} | grep -c docker/) -gt 0 ] || [ $(echo ${GIT_OUTPUT} | grep -c .github/workflows/linux.yml) -gt 0 ] || [ '${{ github.event_name }}' = 'schedule' ]; then
             echo "build_docker_containers=true" >> $GITHUB_OUTPUT
-            BUILD_DOCKER="true"
           else
             echo "build_docker_containers=false" >> $GITHUB_OUTPUT
           fi
 
   build_packages:
     name: Build the Linux packages
-    # Don't build the packages if triggered by cron because it will not
-    # have the correct inputs required to construct the package names correctly.
-    # The cron schedule is really for making sure the docker containers are
-    # up-to-date anyway.
-    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     needs:
       - determine_docker_version
@@ -118,21 +105,31 @@ jobs:
           build-args: OS_VERSION=${{ matrix.version }}
 
       - name: Build package
+        # Don't build the packages if triggered by cron because it will not
+        # have the correct inputs required to construct the package names correctly.
+        # The cron schedule is really for making sure the docker containers are
+        # up-to-date anyway.
+        if: ${{ github.event_name != 'schedule' }}
         run: |
           # Set the correct version in cmake
           PACKAGE_VERSION=${{ inputs.package_complete_version }}
           EXTRA_CMAKE_ARGS="-DPERFORMOUS_VERSION=${PACKAGE_VERSION}"
 
           # Decide if we should build a 'Release' package or a 'RelWithDebInfo' (default)
-          if [ '${{ github.event_name }}' != 'pull_request' ]; then
+          # For some reason, building with 'RelWithDebInfo' (default) doesn't work 
+          # specifically on PRs, so we'll just build Releases for everything for now
+          #if [ '${{ github.event_name }}' != 'pull_request' ]; then
             RELEASE_TYPE="-R"
-          fi
+          #fi
 
           # Only pull the container if it wasn't built locally
           if [ '${{ needs.determine_docker_version.outputs.build_docker_containers }}' = 'false' ]; then
             docker pull ${{ env.CONTAINER_NAME }}
           fi
-          docker run --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} ./build_performous.sh -g -D /github_actions_build/ ${RELEASE_TYPE}
+
+          # Run the build inside the docker containers using the
+          # build script that was pulled inside during the build
+          docker run --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} ./build_performous.sh -g -D /github_actions_build/ -E ${EXTRA_CMAKE_ARGS} ${RELEASE_TYPE}
           # Do some mangling to make a unique name based on the OS
           # This is needed so we don't overwite in the release each time.
           # We should probably investigate what cmake can do for package output
@@ -153,10 +150,13 @@ jobs:
           echo "MASTER_ARTIFACT_NAME=${MASTER_ARTIFACT_NAME}" >> ${GITHUB_ENV}
 
       - name: Run unittests directly called
+        if: ${{ github.event_name != 'schedule' }}
         run: |
+          # Run the containers with the script for each testing suite
           docker run --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} ./run_gtest.sh
 
       - name: Run unittests by ctest
+        if: ${{ github.event_name != 'schedule' }}
         run: |
           docker run --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} ./run_ctest.sh
 
@@ -184,7 +184,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          upload_url: ${{ inputs.release_upload_url }}
           asset_path: ${{ env.ARTIFACT_PATH }}
           asset_name: ${{ env.ARTIFACT_NAME }}
           asset_content_type: application/octet-stream
@@ -200,4 +200,3 @@ jobs:
           push: true
           tags: ${{ env.CONTAINER_NAME }}
           build-args: OS_VERSION=${{ matrix.version }}
-

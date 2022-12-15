@@ -6,7 +6,6 @@ on:
   # all PRs, and release tags 
   push:
     branches:
-      - '*'
       - master
       - '[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+'
     tags:
@@ -75,7 +74,7 @@ jobs:
 
   # Pull in the Linux build workflow
   Linux_Packages:
-    name: Build the docker containers
+    name: Build the Linux packages
     uses: ./.github/workflows/linux.yml
     with:
       package_complete_version: ${{ needs.determine_version.outputs.complete_version }}
