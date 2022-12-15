@@ -47,7 +47,6 @@ done
 
 if [ ${HELP} ]; then
   usage
-  exit 2
 fi
 
 ## All the git stuff
@@ -79,12 +78,6 @@ fi
 
 if [ "${RELEASE_BUILD}" ]; then
   EXTRA_CMAKE_ARGS="${EXTRA_CMAKE_ARGS} -DCMAKE_BUILD_TYPE=Release"
-fi
-
-if ([ "${ID}" = "debian" ] && [ "${VERSION_ID}" = "10" ]); then
-  # Debian Buster has system Aubio 0.4.5, this is not enough
-  # because performous requires a minimum version of 0.4.9.
-  EXTRA_CMAKE_ARGS="${EXTRA_CMAKE_ARGS} -DSELF_BUILT_AUBIO=ALWAYS"
 fi
 
 ## Figure out what type of packages we need to generate
