@@ -6,7 +6,7 @@ on:
   # all PRs, and release tags 
   push:
     branches:
-      - '*'
+      #- '*'
       - master
       - '[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+'
     tags:
