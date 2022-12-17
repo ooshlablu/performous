@@ -32,7 +32,7 @@ RUN if [ ${OS_VERSION} -eq 10 ]; then \
        apt-get -y install libgmock-dev libgtest-dev; fi && \
     apt-get clean && \
     mkdir /root/performous
-##
+
 ## Copy in the build script to make things easy
 COPY build_performous.sh /root/performous/build_performous.sh
 COPY run_ctest.sh /root/performous/run_ctest.sh
