@@ -26,3 +26,5 @@ Latest builds
 - [Linux - Fedora 35](https://nightly.link/performous/performous/workflows/build_and_release/master/Performous-latest-fedora_35.rpm.zip)
 - [Linux - Fedora 36](https://nightly.link/performous/performous/workflows/build_and_release/master/Performous-latest-fedora_36.rpm.zip)
 - [Linux - AppImage](https://nightly.link/performous/performous/workflows/build_and_release/master/Performous-latest.AppImage.zip)
+
+##
