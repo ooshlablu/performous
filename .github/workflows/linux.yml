@@ -59,7 +59,7 @@ jobs:
           cd ../../
           git worktree add ./docker-base --no-checkout --detach
           cd docker-base
-          git checkout origin/${base_version} -- docker
+          git checkout ${base_version} -- docker
 
           DIFF_UBUNTU=$(diff -q ./docker/Dockerfile.ubuntu ../docker/Dockerfile.ubuntu 1>/dev/null ; echo $?)
           DIFF_FEDORA=$(diff -q ./docker/Dockerfile.fedora ../docker/Dockerfile.fedora 1>/dev/null ; echo $?)
