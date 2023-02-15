@@ -45,6 +45,7 @@ jobs:
             base_version='${{ github.event.before }}'
           else
             base_version='master'
+            base_origin='origin/'
           fi
           DIFF_YML=$(curl -L https://github.com/ooshlablu/performous/raw/${base_version}/.github/workflows/linux.yml 2>/dev/null | diff -q  -- ./linux.yml - 1>/dev/null ; echo $?)
 
@@ -59,7 +60,7 @@ jobs:
           cd ../../
           git worktree add ./docker-base --no-checkout --detach
           cd docker-base
-          git checkout ${base_version} -- docker
+          git checkout ${base_origin}${base_version} -- docker
 
           DIFF_UBUNTU=$(diff -q ./docker/Dockerfile.ubuntu ../docker/Dockerfile.ubuntu 1>/dev/null ; echo $?)
           DIFF_FEDORA=$(diff -q ./docker/Dockerfile.fedora ../docker/Dockerfile.fedora 1>/dev/null ; echo $?)
@@ -83,13 +84,14 @@ jobs:
             echo "build_fedora_containers=false" >> $GITHUB_OUTPUT
           fi
 
-          if [[ $DIFF_debian == 1 ]]; then
+          if [[ $DIFF_DEBIAN == 1 ]]; then
             echo "Refresh DEBIAN containers: TRUE"
             echo "build_debian_containers=true" >> $GITHUB_OUTPUT
           else
             echo "Refresh DEBIAN containers: FALSE"
             echo "build_debian_containers=false" >> $GITHUB_OUTPUT
           fi
+
   build_packages:
     name: Build the Linux packages
     runs-on: ubuntu-latest
