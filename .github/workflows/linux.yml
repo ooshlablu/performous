@@ -46,7 +46,7 @@ jobs:
           else
             base_version='master'
           fi
-          DIFF_YML=$(curl -L https://github.com/performous/performous/raw/${base_version}/.github/workflows/linux.yml 2>/dev/null | diff -q  -- ./linux.yml - 1>/dev/null ; echo $?)
+          DIFF_YML=$(curl -L https://github.com/ooshlablu/performous/raw/${base_version}/.github/workflows/linux.yml 2>/dev/null | diff -q  -- ./linux.yml - 1>/dev/null ; echo $?)
 
           if [[ $DIFF_YML == 1 || '${{ github.event_name }}' == 'schedule' ]]; then
             echo "Refresh all containers: TRUE"
@@ -90,7 +90,6 @@ jobs:
             echo "Refresh DEBIAN containers: FALSE"
             echo "build_debian_containers=false" >> $GITHUB_OUTPUT
           fi
-          ##
   build_packages:
     name: Build the Linux packages
     runs-on: ubuntu-latest
