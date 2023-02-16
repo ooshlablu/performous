@@ -91,7 +91,6 @@ jobs:
             echo "Refresh DEBIAN containers: FALSE"
             echo "build_debian_containers=false" >> $GITHUB_OUTPUT
           fi
-
   build_packages:
     name: Build the Linux packages
     runs-on: ubuntu-latest
