@@ -15,6 +15,9 @@ template <typename T> T sconv(std::string const& s);
 template <typename T> constexpr T clamp(T val, T min = 0, T max = 1) {
 	return (val < min) ? min : (val > max) ? max : val;
 }
+template <typename T> constexpr T lerp(T a, T b, T t) {
+	return a + t * (b - a);
+}
 
 template <typename Numeric> struct MinMax {
 	Numeric min, max;
@@ -52,6 +55,9 @@ struct UnlockGuard {
 
 std::uint32_t stou(std::string const & str, size_t * idx = nullptr, int base = 10);
 std::string format(std::chrono::seconds const& unixtime, std::string const& format, bool utc = false);
+
+bool startsWithUTF8BOM(std::string const& s);
+bool isText(std::string const& s, size_t bytesToCheck = 32);
 
 /** Templated conversion from strongly typed enums to the underlying type. **/
 template <typename E>
