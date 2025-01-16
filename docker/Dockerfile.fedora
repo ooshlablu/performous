@@ -13,6 +13,11 @@ RUN <<EOR
 	dnf install -y \
 		https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
 		https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+        ## Force US mirrors for Fedora 
+        for FILE in /etc/yum.repos.d/*; do
+                sed -i 's/metalink=.*/&\&country=us/g' ${FILE}
+        done
+        ####
 	dnf install -y git cmake gcc-c++ gettext cairo-devel librsvg2-devel libsigc++20-devel \
 		glibmm24-devel libxml++-devel boost-devel SDL2-devel libepoxy-devel ffmpeg-devel \
 		portaudio-devel help2man redhat-lsb opencv-devel portmidi-devel libjpeg-turbo-devel \
