@@ -304,6 +304,8 @@ endif()
 
 if(WIN32 AND MSVC)
 #	target_compile_options(performous PUBLIC /WX)
+elseif(APPLE)
+	target_compile_options(performous PUBLIC)
 else()
 	target_compile_options(performous PUBLIC -Werror)
 endif()

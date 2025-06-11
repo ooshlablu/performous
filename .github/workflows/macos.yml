@@ -64,7 +64,7 @@ jobs:
       - name: "Update Brew"
         id: update_brew
         run: |
-          brew update
+          brew update && brew upgrade --force --overwrite
 
       - name: Fetch Dependencies
         id: fetch_deps
