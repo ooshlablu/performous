@@ -186,12 +186,16 @@ void loadJPEG(Bitmap& bitmap, fs::path const& filename) {
 /**
   * \brief    Load a WEBP image from the given filename.  Throws a std::runtime_error on any error
   *
+  * \note     The support for WebP is compile-time optional.  If the library is found, it is 
+  *           used, otherwise this function is stubbed-out to simply raise an error.
+  *
   * \param[out] bitmap    Target obejct for the pixel data
   * \param[in]  filename  Path to load the image from
   *
   */
-void loadWEBP(Bitmap& bitmap, fs::path const& filename) {
+void loadWEBP([[maybe_unused]] Bitmap& bitmap, fs::path const& filename) {
 	SpdLogger::debug(LogSystem::IMAGE, "Loading WEBP file, path={}", filename);
+#ifdef HAVE_WebP    
     static WebPDecoderConfig webpConfig;
     static bool webpConfigured{false};
 
@@ -224,6 +228,9 @@ void loadWEBP(Bitmap& bitmap, fs::path const& filename) {
     {
         throw std::runtime_error("Failed Decoding WEBP file");
     }
+#else
+    throw std::runtime_error("WebP support not compiled in");
+#endif //#ifdef HAVE_WebP    
 }
   
 
