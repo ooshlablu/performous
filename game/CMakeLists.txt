@@ -124,13 +124,17 @@ set(Aubio_REQUIRED_VERSION "0.4.9")
 if (MINGW)
 	target_link_libraries(performous PRIVATE mingw32)
 endif()
-foreach(lib SDL2 PangoCairo LibRSVG LibXML++ AVFormat SWResample SWScale ZLIB JPEG PNG PortAudio Fontconfig GLM Json Ced Aubio)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set( CMAKE_SHARED_LINKER_FLAGS, "-Wl,--copy-dt-needed-entries" )   # needed for libwebp
+endif()
+foreach(lib SDL2 PangoCairo LibRSVG LibXML++ AVFormat SWResample SWScale ZLIB JPEG PNG WebP PortAudio Fontconfig GLM Json Ced Aubio)
 	find_package(${lib} ${${lib}_REQUIRED_VERSION} REQUIRED)
 	message(STATUS "${lib} includes: ${${lib}_INCLUDE_DIRS}")
 	target_include_directories(performous SYSTEM PRIVATE ${${lib}_INCLUDE_DIRS})
 	target_link_libraries(performous PRIVATE ${${lib}_LIBRARIES})
 	add_definitions(${${lib}_DEFINITIONS})
 endforeach(lib)
+
 
 find_package(fmt 8.1 REQUIRED CONFIG)
 # CppRESTSDK and their godforsaken U macro.
