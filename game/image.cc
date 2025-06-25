@@ -210,10 +210,11 @@ void loadWEBP([[maybe_unused]] Bitmap& bitmap, fs::path const& filename) {
     }
 
     BinaryBuffer webpData = readFile(filename);
-    int width, height;
+    int width;
+    int height;
     if (!WebPGetInfo(webpData.data(), webpData.size(), &width, &height) || !(width > 0 && height > 0))
     {
-        throw std::runtime_error("Failed Checking WEBP file");
+        throw std::runtime_error("Failed Checking WEBP file"); // The image loader only catches std::runtime_error
     }
 
     std::uint8_t *rawPixelData = WebPDecodeRGBA(webpData.data(), webpData.size(), &width, &height);
