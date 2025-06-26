@@ -222,8 +222,8 @@ void loadWEBP([[maybe_unused]] Bitmap& bitmap, fs::path const& filename) {
     std::uint8_t *rawPixelData = WebPDecodeRGBA(webpData.data(), webpData.size(), &width, &height);
     if (rawPixelData)
     {
-        unsigned width_u = static_cast<size_t>(width);  // MacOS build needs unsigned
-        unsigned height_u = static_cast<size_t>(height);
+        unsigned width_u = static_cast<unsigned>(width);  // MacOS build needs unsigned
+        unsigned height_u = static_cast<unsigned>(height);
         bitmap.resize(width_u, height_u); 
         std::memcpy(bitmap.data(), rawPixelData, 4*width_u*height_u);
         WebPFree(rawPixelData); 
