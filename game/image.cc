@@ -3,8 +3,10 @@
 #include "log.hh"
 
 #include <jpeglib.h>
-#include <webp/decode.h>
 #include <png.h>
+#ifdef HAVE_WebP    
+#include <webp/decode.h>
+#endif 
 
 #include <fstream>
 #include <iostream>
