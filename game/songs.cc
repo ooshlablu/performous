@@ -93,8 +93,8 @@ void Songs::reload_internal() {
     prof("load-cache");
 	SpdLogger::notice(LogSystem::CACHE, "Finished reading the song cache. Will now check songs on disk to update it if necessary.");
 
-	Paths systemSongs = getPathsConfig("paths/system-songs");
-	Paths paths = getPathsConfig("paths/songs");
+	Paths systemSongs = PathCache::getPathsConfig("paths/system-songs");
+	Paths paths = PathCache::getPathsConfig("paths/songs");
 	paths.insert(paths.begin(), systemSongs.begin(), systemSongs.end());
 
 	for (auto it = paths.begin(); m_loading && it != paths.end(); ++it) { //loop through stored directories from config
@@ -127,7 +127,7 @@ void Songs::reload_internal() {
 }
 
 Songs::Cache Songs::loadCache() {
-	const fs::path songsMetaFile = getCacheDir() / SONGS_CACHE_JSON_FILE;
+	const fs::path songsMetaFile = PathCache::getCacheDir() / SONGS_CACHE_JSON_FILE;
 	auto jsonRoot = readJSON(songsMetaFile);
 	Cache cache;
 	for (auto const& songData : jsonRoot) {
@@ -273,7 +273,7 @@ void Songs::CacheSonglist() {
 		}
 	}
 
-	fs::path cacheDir = getCacheDir() / SONGS_CACHE_JSON_FILE;
+	fs::path cacheDir = PathCache::getCacheDir() / SONGS_CACHE_JSON_FILE;
 	writeJSON(jsonRoot, cacheDir);
 	}
 
@@ -298,6 +298,11 @@ void Songs::reload_internal(fs::path const& parent, Cache cache) {
 			fs::path p = dir.path();
 			if (!regex_search(p.filename().string(), expression)) {
 				continue; //if the folder does not contain any of the requested files, ignore it
+			}
+			std::regex ignoredFiles("^(\\._.*|\\.\\#.*)$");  // skip MacOS meta, common backup files
+			if ( regex_search(p.filename().string(), ignoredFiles)) {
+				SpdLogger::debug(LogSystem::SONGS, "Ignoring metadata/backup file {}", p.filename().string());
+				continue; // skip trying to load these files (which causes an exception log)
 			}
 			try { //found song file, make a new song with it.
 				auto song = std::shared_ptr<Song>{};
