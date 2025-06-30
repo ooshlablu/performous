@@ -132,13 +132,15 @@ foreach(lib SDL2 PangoCairo LibRSVG LibXML++ AVFormat SWResample SWScale ZLIB JP
 	add_definitions(${${lib}_DEFINITIONS})
 endforeach(lib)
 
-# Find all the optional libs, and #define HAVE_$lib if found (e.g.: HAVE_WebP)
+# Find all the optional libs, and #define USE_$lib if found (e.g.: USE_WEBP)
+# Where the define is the uppercase library name.
 # (Code using these libs must conditionally handle it not being available)
 foreach(lib WebP )
 	find_package(${lib} ${${lib}_REQUIRED_VERSION} QUIET)
     if (${lib}_FOUND)
         message(STATUS "${lib} includes: ${${lib}_INCLUDE_DIRS}")
-        target_compile_definitions(performous PRIVATE HAVE_${lib}=1)
+        string(TOUPPER ${lib} UPPER_LIB)
+        target_compile_definitions(performous PRIVATE USE_${UPPER_LIB}=1)
     else()
         message(STATUS "${lib} Library was NOT FOUND, removing support for it")
     endif()

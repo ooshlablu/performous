@@ -4,7 +4,7 @@
 
 #include <jpeglib.h>
 #include <png.h>
-#ifdef HAVE_WebP    
+#ifdef USE_WEBP    
 #include <webp/decode.h>
 #endif 
 
@@ -197,7 +197,7 @@ void loadJPEG(Bitmap& bitmap, fs::path const& filename) {
   */
 void loadWEBP([[maybe_unused]] Bitmap& bitmap, fs::path const& filename) {
 	SpdLogger::debug(LogSystem::IMAGE, "Loading WEBP file, path={}", filename);
-#ifdef HAVE_WebP    
+#ifdef USE_WEBP    
     static WebPDecoderConfig webpConfig;
     static bool webpConfigured{false};
 
@@ -235,7 +235,7 @@ void loadWEBP([[maybe_unused]] Bitmap& bitmap, fs::path const& filename) {
     }
 #else
     throw std::runtime_error("WebP support not compiled in");
-#endif //#ifdef HAVE_WebP    
+#endif //#ifdef USE_WEBP    
 }
   
 
