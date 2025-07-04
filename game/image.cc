@@ -198,43 +198,43 @@ void loadJPEG(Bitmap& bitmap, fs::path const& filename) {
 void loadWEBP([[maybe_unused]] Bitmap& bitmap, fs::path const& filename) {
 	SpdLogger::debug(LogSystem::IMAGE, "Loading WEBP file, path={}", filename);
 #ifdef USE_WEBP    
-    static WebPDecoderConfig webpConfig;
-    static bool webpConfigured{false};
+	static WebPDecoderConfig webpConfig;
+	static bool webpConfigured{false};
 
-    if (!webpConfigured)
-    {
-        // The WEBP decoder needs a pre-configuration step
-        if (!WebPInitDecoderConfig(&webpConfig))
-        {
-            throw std::runtime_error("Failed to Initialise WEBP Decoder");
-        }
-        webpConfigured = true;  // configured OK
-    }
+	if (!webpConfigured)
+	{
+		// The WEBP decoder needs a pre-configuration step
+		if (!WebPInitDecoderConfig(&webpConfig))
+		{
+			throw std::runtime_error("Failed to Initialise WEBP Decoder");
+		}
+		webpConfigured = true;  // configured OK
+	}
 
-    BinaryBuffer webpData = readFile(filename);
-    int width;
-    int height;
-    if (!WebPGetInfo(webpData.data(), webpData.size(), &width, &height) || !(width > 0 && height > 0))
-    {
-        throw std::runtime_error("Failed Checking WEBP file"); // The image loader only catches std::runtime_error
-    }
+	BinaryBuffer webpData = readFile(filename);
+	int width;
+	int height;
+	if (!WebPGetInfo(webpData.data(), webpData.size(), &width, &height) || !(width > 0 && height > 0))
+	{
+		throw std::runtime_error("Failed Checking WEBP file"); // The image loader only catches std::runtime_error
+	}
 
-    std::uint8_t *rawPixelData = WebPDecodeRGBA(webpData.data(), webpData.size(), &width, &height);
-    if (rawPixelData)
-    {
-        unsigned width_u = static_cast<unsigned>(width);  // MacOS build needs unsigned
-        unsigned height_u = static_cast<unsigned>(height);
-        bitmap.resize(width_u, height_u); 
-        std::memcpy(bitmap.data(), rawPixelData, 4*width_u*height_u);
-        WebPFree(rawPixelData); 
-        return; // all ok
-    }
-    else
-    {
-        throw std::runtime_error("Failed Decoding WEBP file");
-    }
+	std::uint8_t *rawPixelData = WebPDecodeRGBA(webpData.data(), webpData.size(), &width, &height);
+	if (rawPixelData)
+	{
+		unsigned width_u = static_cast<unsigned>(width);  // MacOS build needs unsigned
+		unsigned height_u = static_cast<unsigned>(height);
+		bitmap.resize(width_u, height_u); 
+		std::memcpy(bitmap.data(), rawPixelData, 4*width_u*height_u);
+		WebPFree(rawPixelData); 
+		return; // all ok
+	}
+	else
+	{
+		throw std::runtime_error("Failed Decoding WEBP file");
+	}
 #else
-    throw std::runtime_error("WebP support not compiled in");
+	throw std::runtime_error("WebP support not compiled in");
 #endif //#ifdef USE_WEBP    
 }
   
