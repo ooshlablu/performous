@@ -1,5 +1,6 @@
 name: Build MacOS Packages
 
+## A fake commit
 on:
   # Run when called from other workflows
   workflow_call:
