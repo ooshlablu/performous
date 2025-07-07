@@ -2,6 +2,8 @@
 ## Pull in /etc/os-release so we can see what we're running on
 . /etc/os-release
 
+## Still fake but more real
+
 ## Default Vars
 CLONE_DIRECTORY='/github_actions_build'
 CTEST_TESTING_DIRECTORY='build'
