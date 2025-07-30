@@ -1,11 +1,12 @@
 #! /usr/bin/env bash
 
 EXE=$( basename "$0" )
-OUT_FILENAME=""
-TMP_DIR=""
+OUT_FILENAME=''
+TMP_DIR=''
 TMP_NAME="performous.appimage-build.$$"
 REPO_URL='https://github.com/performous/performous.git'
 APPIMAGETOOL_URL='https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage'
+APPIMAGETOOL=''
 
 START_DIR=$( pwd )
 
@@ -38,14 +39,22 @@ while [ "$#" -gt 0 ]; do
             OUT_FILENAME="${1#*=}"
             shift 1
             ;;
+        -a)
+            APPIMAGETOOL="${2}"
+            shift 2
+            ;;
+        --apptool=*)
+            APPIMAGETOOL="${1#*=}"
+            shift 1
+            ;;
         --tmp=*)
             TMP_DIR="${1#*=}/${TMP_NAME}"
             shift 1
             ;;
-
         -h|--help|/?|-?)
             echo "${EXE}: Options:"
             echo "${EXE}: -o [dir/file] | --output=[dir/file]  ... Where to write the App Image"
+            echo "${EXE}: -a [file] | --apptool=[file]  .......... Use this Tool instead of downloading"
             echo "${EXE}: --tmp=[dir]  ........................... Which tmp/ dir to use"
             exit 1
             ;;
@@ -56,8 +65,14 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
+### where to put the AppImage File
+if [ -z "${OUT_FILENAME}" ]; then
+    OUT_FILENAME=./Performous.Appimage
+fi
 
+###
 ### Find a usable temp dir
+###
 if [ -z "${TMP_DIR}" ]; then 
     if [ -d "${HOME}/tmp" ] && [ -w "${HOME}/tmp" ]; then
         TMP_DIR="${HOME}/tmp/${TMP_NAME}"
@@ -83,14 +98,25 @@ cd "${TMP_DIR}" || messageExit "Unable to cwd into [${TMP_DIR}], giving up"
 APP_DIR="${TMP_DIR}/AppDir"
 mkdir "${APP_DIR}" || messageExit "Failed to make [${APP_DIR}], giving up"
 
-### Fetch the AppImage tool
-echo "### Fetching AppImageTool ..."
-APPIMAGETOOL="${TMP_DIR}/AppImageTool"
-wget -nv -pq "${APPIMAGETOOL_URL}" -O "${APPIMAGETOOL}" || messageExit "Failed to download AppImageTool from [${APPIMAGETOOL_URL}], giving up"
-chmod +x "${APPIMAGETOOL}" || messageExit "Failed to make AppimageTool [${APPIMAGETOOL}] executable, giving up"
-echo "### Fetching AppImageTool Completes"
+###
+### Check the AppimageTool specified by the user (if any) is usable
+###
+if [ ! -z "${APPIMAGETOOL}" ]; then
+    test -x "${APPIMAGETOOL}" || messageExit "Given AppImageTool [${APPIMAGETOOL}] doesn't seem to work, giving up"
+    echo "### Using AppImageTool [${APPIMAGETOOL}]"
+else    
+    ### Eventually we need the AppImageTool to pack everything into the final AppImage file.  
+    ### Download an AppImage tool
+    echo "### Fetching AppImageTool ..."
+    APPIMAGETOOL="${TMP_DIR}/AppImageTool"
+    wget -nv -pq "${APPIMAGETOOL_URL}" -O "${APPIMAGETOOL}" || messageExit "Failed to download AppImageTool from [${APPIMAGETOOL_URL}], giving up"
+    chmod +x "${APPIMAGETOOL}" || messageExit "Failed to make AppimageTool [${APPIMAGETOOL}] executable, giving up"
+    echo "### Fetching AppImageTool Completes"
+fi
 
-### Clone the Performous repo
+###
+### Clone the Performous repo, then build it
+###
 echo "### Cloning Performous ..."
 git clone "${REPO_URL}" || messageExit "Failed to clone Performous repo' [${REPO_URL}], giving up"
 test -d performous || messageExit "Repo' doesn't seem to have a [performous] dir, giving up"
@@ -105,11 +131,14 @@ cd "${BUILD_DIR}" || messageExit "Unable to use [${BUILD_DIR}], giving up"
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. || messageExit "CMake failed, giving up"
 make -j4 install DESTDIR="${APP_DIR}" || messageExit "(GNU) make failed, giving up"
 
-
 ### So now we have Performous packed into the .../AppDir directory, with all resources
 PERFORMOUS_EXE="${APP_DIR}/usr/bin/performous"
 test -x "${PERFORMOUS_EXE}" || messageExit "Failed to find Perfomous at [${PERFORMOUS_EXE}], giving up"
 
+###
+### Use `ldd` on the performous exe to determine the list of necessary libraries
+### Then copy these libraries into the packaging dir under /usr/lib/
+###
 # Start adding the required libraries
 APPLIB_DIR="${APP_DIR}/usr/lib"
 mkdir "${APPLIB_DIR}" || messageExit "Failed to create [${APPLIB_DIR}], giving up" 
@@ -122,21 +151,29 @@ while read lib_file; do
     fi
 done
 
+###
 ### Create the AppRun
-cd "${APP_DIR}"
-cat << EOT >> "AppRun"
-#! /bin/bash
-export LD_LIBRARY_PATH=$APPIMAGE/usr/lib:$LD_LIBRARY_PATH
-chmod a+rx "$APPIMAGE/usr/bin/performous"
-exec "$APPIMAGE/usr/bin/performous"
-EOT
-chmod a+rx AppRun
+### This is the execution entry-point of the AppImage
+###
+> "${APP_DIR}/AppRun"
+echo '#! /bin/bash' >> "${APP_DIR}/AppRun"
+echo 'export LD_LIBRARY_PATH="${APPDIR}/usr/lib:${LD_LIBRARY_PATH}"' >> "${APP_DIR}/AppRun"
+echo 'exec "${APPDIR}/usr/bin/performous" "$@"'  >> "${APP_DIR}/AppRun"
+chmod a+rx "${APP_DIR}/AppRun"
 
-### Create the miscellaneous AppImage infrastructure
+### Create the miscellaneous AppImage infrastructure, activation items and icons
 cp "${SRC_DIR}/data/performous.desktop" "${APP_DIR}/"
 cp "${SRC_DIR}/data/themes/default/icon.svg" "${APP_DIR}/performous.svg"
 cp "${SRC_DIR}/data/themes/default/icon128x128.png" "${APP_DIR}/AppRun.DirIcon"
 
+
+### All package prep is now done.
+
+
+###
+### Now pack all that stuff into the final AppImage
+### This uses the AppImageTool executable we downloaded earlier
+###
 echo "### Building AppImage to [${OUT_FILENAME}] ..."
 cd "${START_DIR}"
 "${APPIMAGETOOL}" "${APP_DIR}" "${OUT_FILENAME}"
