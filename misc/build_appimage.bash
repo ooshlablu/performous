@@ -142,7 +142,7 @@ test -x "${PERFORMOUS_EXE}" || messageExit "Failed to find Perfomous at [${PERFO
 # Start adding the required libraries
 APPLIB_DIR="${APP_DIR}/usr/lib"
 mkdir "${APPLIB_DIR}" || messageExit "Failed to create [${APPLIB_DIR}], giving up" 
-ldd "${PERFORMOUS_EXE}" | awk '{ print $3 }' | 
+ldd "${PERFORMOUS_EXE}" | awk '{ print $3 }' | grep -Ev 'libc\.' |
 while read lib_file; do
     # Core System libraries end up giving a blank $lib_file, we want to skip these anyway
     if [ ! -z "${lib_file}" ]; then
