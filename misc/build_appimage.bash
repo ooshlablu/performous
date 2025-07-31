@@ -22,7 +22,7 @@ messageExit () {
 }
 
 ### Check we have the necessary tools
-for needed_program in git cmake make ldd awk wget; do 
+for needed_program in git cmake make ldd find awk wget; do 
     which ${needed_program} > /dev/null || messageExit "The program [${needed_program}] is needed, can't continue"
 done
 
@@ -142,14 +142,17 @@ test -x "${PERFORMOUS_EXE}" || messageExit "Failed to find Perfomous at [${PERFO
 # Start adding the required libraries
 APPLIB_DIR="${APP_DIR}/usr/lib"
 mkdir "${APPLIB_DIR}" || messageExit "Failed to create [${APPLIB_DIR}], giving up" 
-ldd "${PERFORMOUS_EXE}" | awk '{ print $3 }' | grep -Ev 'libc\.' |
-while read lib_file; do
+ldd "${PERFORMOUS_EXE}" | awk '{ print $3 }' | grep -Ev 'libc\.' > ${TMP_DIR}/libs.txt
+find /usr/lib -iname libasound_module\*  >> ${TMP_DIR}/libs.txt
+cat ${TMP_DIR}/libs.txt | while read lib_file; do
     # Core System libraries end up giving a blank $lib_file, we want to skip these anyway
     if [ ! -z "${lib_file}" ]; then
         #echo "COPY [$lib_file] to [${APPLIB_DIR}]"
         cp --dereference -p "${lib_file}" "${APPLIB_DIR}/"    # ensure symlinks are copied too
     fi
 done
+# Extra libs
+
 
 ###
 ### Create the AppRun
