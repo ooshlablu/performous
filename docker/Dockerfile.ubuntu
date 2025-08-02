@@ -39,7 +39,7 @@ RUN <<EOR
 	apt-get install -y --no-install-recommends build-essential cmake \
 		gcc g++ gettext git help2man libopenblas-dev libfftw3-dev libicu-dev libepoxy-dev \
 		libsdl2-dev libfreetype6-dev libpango1.0-dev librsvg2-dev libxml++2.6-dev \
-		libavcodec-dev libavformat-dev libswscale-dev libjpeg-dev libwebp-dev libwebp7 \
+		libavcodec-dev libavformat-dev libswscale-dev libjpeg-dev libwebp-dev \
 		portaudio19-dev libglm-dev libboost-filesystem-dev nlohmann-json3-dev\
 		libboost-iostreams-dev libboost-locale-dev libboost-system-dev \
 		libboost-program-options-dev libssl-dev libcpprest-dev \
