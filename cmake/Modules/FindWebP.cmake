@@ -8,7 +8,7 @@
 include(LibFindMacros)
 
 # Use pkg-config to get hints about paths
-libfind_pkg_check_modules(WebP_PKGCONF freetype2)
+libfind_pkg_check_modules(WebP_PKGCONF libwebp)
 
 # Include dir
 find_path(WebP_INCLUDE_DIR
