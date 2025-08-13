@@ -58,9 +58,9 @@ if(NOT WebP_PKGCONF_FOUND)
   endif()
 endif()
 
-# Find the main WebP library with multiple possible names
+# Find the main WebP library with multiple possible names and versions
 find_library(WebP_LIBRARY
-  NAMES webp libwebp
+  NAMES webp libwebp webp7 libwebp7 webp6 libwebp6
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
   PATHS 
     /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
@@ -96,9 +96,18 @@ if(NOT WebP_INCLUDE_DIR)
   endif()
 endif()
 
-# Find optional WebP libraries with flexible naming
+# Verify we can find at least basic WebP functionality
+if(WebP_INCLUDE_DIR AND EXISTS "${WebP_INCLUDE_DIR}/webp/decode.h")
+  set(WebP_BASIC_FOUND TRUE)
+elseif(WebP_INCLUDE_DIR AND EXISTS "${WebP_INCLUDE_DIR}/decode.h")
+  set(WebP_BASIC_FOUND TRUE)
+else()
+  set(WebP_BASIC_FOUND FALSE)
+endif()
+
+# Find optional WebP libraries with flexible naming (these may not exist in older versions)
 find_library(WebP_DEMUX_LIBRARY
-  NAMES webpdemux libwebpdemux
+  NAMES webpdemux libwebpdemux webpdemux2 libwebpdemux2 webpdemux1 libwebpdemux1
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
   PATHS 
     /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
@@ -109,7 +118,7 @@ find_library(WebP_DEMUX_LIBRARY
 )
 
 find_library(WebP_MUX_LIBRARY
-  NAMES webpmux libwebpmux
+  NAMES webpmux libwebpmux webpmux3 libwebpmux3 webpmux2 libwebpmux2 webpmux1 libwebpmux1
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
   PATHS 
     /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
@@ -119,9 +128,9 @@ find_library(WebP_MUX_LIBRARY
     /opt/local/lib
 )
 
-# Also try to find decoder-only library (common on some systems)
+# Also try to find decoder-only library (common on some systems, may have version numbers)
 find_library(WebP_DECODER_LIBRARY
-  NAMES webpdecoder libwebpdecoder
+  NAMES webpdecoder libwebpdecoder webpdecoder3 libwebpdecoder3 webpdecoder2 libwebpdecoder2 webpdecoder1 libwebpdecoder1
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
   PATHS 
     /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
@@ -169,26 +178,70 @@ else()
       endif()
     endif()
   endif()
+  
+  # If we still don't have a version, try to infer from library names
+  if(NOT WebP_VERSION AND WebP_LIBRARY)
+    get_filename_component(WebP_LIB_NAME "${WebP_LIBRARY}" NAME_WE)
+    if(WebP_LIB_NAME MATCHES "libwebp([0-9]+)")
+      set(WebP_VERSION_MAJOR ${CMAKE_MATCH_1})
+      # Make a reasonable guess for common versions
+      if(WebP_VERSION_MAJOR EQUAL "6")
+        set(WebP_VERSION "0.6.1")  # Common version for libwebp6
+      elseif(WebP_VERSION_MAJOR EQUAL "7")
+        set(WebP_VERSION "1.0.0")  # Common version for libwebp7
+      endif()
+    endif()
+  endif()
+endif()
+
+# Check version compatibility if we have it
+if(WebP_VERSION)
+  # Check if this is a very old version that might have limited functionality
+  if(WebP_VERSION VERSION_LESS "0.4.0")
+    message(WARNING "WebP version ${WebP_VERSION} is very old. Some features may not be available.")
+  endif()
 endif()
 
 # Validate that we have at least the main library and headers
-set(WebP_REQUIRED_VARS WebP_LIBRARY WebP_INCLUDE_DIR)
+# For older versions, we may only have basic functionality
+if(WebP_LIBRARY AND WebP_BASIC_FOUND)
+  set(WebP_CORE_FOUND TRUE)
+else()
+  set(WebP_CORE_FOUND FALSE)
+endif()
 
 # Set up the library list for libfind_process
 set(WebP_PROCESS_INCLUDES WebP_INCLUDE_DIR)
 set(WebP_PROCESS_LIBS WebP_LIBRARY)
 
-# Add optional libraries if found
+# Add optional libraries if found (these may not exist in older versions)
 if(WebP_DEMUX_LIBRARY)
   list(APPEND WebP_PROCESS_LIBS WebP_DEMUX_LIBRARY)
+  if(NOT DEFINED WebP_FIND_QUIETLY)
+    message(STATUS "WebP: Found demux library")
+  endif()
 endif()
 
 if(WebP_MUX_LIBRARY)
   list(APPEND WebP_PROCESS_LIBS WebP_MUX_LIBRARY)
+  if(NOT DEFINED WebP_FIND_QUIETLY)
+    message(STATUS "WebP: Found mux library")
+  endif()
 endif()
 
 if(WebP_DECODER_LIBRARY)
   list(APPEND WebP_PROCESS_LIBS WebP_DECODER_LIBRARY)
+  if(NOT DEFINED WebP_FIND_QUIETLY)
+    message(STATUS "WebP: Found decoder library")
+  endif()
+endif()
+
+# Warn about missing optional libraries for older versions
+if(NOT WebP_DEMUX_LIBRARY AND NOT DEFINED WebP_FIND_QUIETLY)
+  message(STATUS "WebP: Demux library not found (may not be available in older versions)")
+endif()
+if(NOT WebP_MUX_LIBRARY AND NOT DEFINED WebP_FIND_QUIETLY)
+  message(STATUS "WebP: Mux library not found (may not be available in older versions)")
 endif()
 
 libfind_process(WebP)
