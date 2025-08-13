@@ -12,12 +12,12 @@ find_package(WebP CONFIG QUIET)
 if(WebP_FOUND)
     # Native CMake config found, but it may have issues on some systems
     # Fix the variables if they're not properly set
-    if(NOT WebP_INCLUDE_DIRS)
+    if(NOT WebP_INCLUDE_DIRS AND WebP_INCLUDE_DIR)
         set(WebP_INCLUDE_DIRS ${WebP_INCLUDE_DIR})
     endif()
     
     # Convert target names to actual library paths if needed
-    if(WebP_LIBRARIES MATCHES "^webp")
+    if(WebP_LIBRARIES AND WebP_LIBRARIES MATCHES "^webp")
         # Libraries are target names, convert to actual paths
         find_library(WebP_LIBRARY_PATH NAMES webp)
         find_library(WebP_DEMUX_LIBRARY_PATH NAMES webpdemux)
@@ -32,14 +32,21 @@ if(WebP_FOUND)
         endforeach()
     endif()
     
-    # Set WEBP_* variables for compatibility
-    set(WEBP_FOUND ${WebP_FOUND})
-    set(WEBP_VERSION ${WebP_VERSION})
-    set(WEBP_INCLUDE_DIRS ${WebP_INCLUDE_DIRS})
-    set(WEBP_LIBRARIES ${WebP_LIBRARIES})
-    
-    message(STATUS "Found WebP ${WebP_VERSION} (using native CMake config)")
-    return()
+    # Verify we actually have usable results
+    if(WebP_INCLUDE_DIRS AND WebP_LIBRARIES)
+        # Set WEBP_* variables for compatibility
+        set(WEBP_FOUND ${WebP_FOUND})
+        set(WEBP_VERSION ${WebP_VERSION})
+        set(WEBP_INCLUDE_DIRS ${WebP_INCLUDE_DIRS})
+        set(WEBP_LIBRARIES ${WebP_LIBRARIES})
+        
+        message(STATUS "Found WebP ${WebP_VERSION} (using native CMake config)")
+        return()
+    else()
+        # Native config didn't provide usable results, fall back to custom finder
+        message(STATUS "WebP native CMake config found but incomplete, falling back to custom finder")
+        unset(WebP_FOUND)
+    endif()
 endif()
 
 # Fall back to custom finder using LibFindMacros
@@ -59,11 +66,28 @@ if(NOT WebP_PKGCONF_FOUND)
 endif()
 
 # Find the main WebP library with multiple possible names and versions
+# In Docker/Ubuntu 22.04, CMAKE_LIBRARY_ARCHITECTURE might not be set properly
+if(NOT CMAKE_LIBRARY_ARCHITECTURE)
+    # Detect architecture for library paths
+    execute_process(
+        COMMAND dpkg-architecture -qDEB_HOST_MULTIARCH
+        OUTPUT_VARIABLE DETECTED_ARCH
+        ERROR_QUIET
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(DETECTED_ARCH)
+        set(CMAKE_LIBRARY_ARCHITECTURE ${DETECTED_ARCH})
+    endif()
+endif()
+
 find_library(WebP_LIBRARY
   NAMES webp libwebp webp7 libwebp7 webp6 libwebp6
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
   PATHS 
     /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
+    /usr/lib/x86_64-linux-gnu
+    /usr/lib/aarch64-linux-gnu 
+    /usr/lib/arm-linux-gnueabihf
     /usr/lib64
     /usr/lib
     /usr/local/lib
@@ -111,6 +135,9 @@ find_library(WebP_DEMUX_LIBRARY
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
   PATHS 
     /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
+    /usr/lib/x86_64-linux-gnu
+    /usr/lib/aarch64-linux-gnu 
+    /usr/lib/arm-linux-gnueabihf
     /usr/lib64
     /usr/lib
     /usr/local/lib
@@ -122,6 +149,9 @@ find_library(WebP_MUX_LIBRARY
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
   PATHS 
     /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
+    /usr/lib/x86_64-linux-gnu
+    /usr/lib/aarch64-linux-gnu 
+    /usr/lib/arm-linux-gnueabihf
     /usr/lib64
     /usr/lib
     /usr/local/lib
@@ -134,6 +164,9 @@ find_library(WebP_DECODER_LIBRARY
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
   PATHS 
     /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
+    /usr/lib/x86_64-linux-gnu
+    /usr/lib/aarch64-linux-gnu 
+    /usr/lib/arm-linux-gnueabihf
     /usr/lib64
     /usr/lib
     /usr/local/lib
@@ -213,6 +246,16 @@ endif()
 # Set up the library list for libfind_process
 set(WebP_PROCESS_INCLUDES WebP_INCLUDE_DIR)
 set(WebP_PROCESS_LIBS WebP_LIBRARY)
+
+# Debug output for troubleshooting (only when not quiet)
+if(NOT DEFINED WebP_FIND_QUIETLY)
+    message(STATUS "WebP Debug: CMAKE_LIBRARY_ARCHITECTURE = '${CMAKE_LIBRARY_ARCHITECTURE}'")
+    message(STATUS "WebP Debug: WebP_LIBRARY = '${WebP_LIBRARY}'")
+    message(STATUS "WebP Debug: WebP_INCLUDE_DIR = '${WebP_INCLUDE_DIR}'")
+    message(STATUS "WebP Debug: WebP_PKGCONF_FOUND = '${WebP_PKGCONF_FOUND}'")
+    message(STATUS "WebP Debug: WebP_PKGCONF_LIBRARY_DIRS = '${WebP_PKGCONF_LIBRARY_DIRS}'")
+    message(STATUS "WebP Debug: WebP_PKGCONF_INCLUDE_DIRS = '${WebP_PKGCONF_INCLUDE_DIRS}'")
+endif()
 
 # Add optional libraries if found (these may not exist in older versions)
 if(WebP_DEMUX_LIBRARY)
