@@ -1,3 +1,4 @@
+
 # - Try to find WebP
 # Once done, this will define
 #
@@ -15,23 +16,58 @@ libfind_pkg_check_modules(WebP_PKGCONF libwebp)
 find_library(WebP_LIBRARY
   NAMES webp
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
+  PATHS
+    /usr/lib
+    /usr/local/lib
+    /opt/local/lib
+    /sw/lib
+  PATH_SUFFIXES
+    x86_64-linux-gnu
+    i386-linux-gnu
+    arm-linux-gnueabihf
+    aarch64-linux-gnu
 )
 
 # Find WebP include directory
 find_path(WebP_INCLUDE_DIR
   NAMES webp/encode.h webp/decode.h
   HINTS ${WebP_PKGCONF_INCLUDE_DIRS}
+  PATHS
+    /usr/include
+    /usr/local/include
+    /opt/local/include
+    /sw/include
 )
 
 # Find optional WebP libraries (demux, mux)
 find_library(WebP_DEMUX_LIBRARY
   NAMES webpdemux
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
+  PATHS
+    /usr/lib
+    /usr/local/lib
+    /opt/local/lib
+    /sw/lib
+  PATH_SUFFIXES
+    x86_64-linux-gnu
+    i386-linux-gnu
+    arm-linux-gnueabihf
+    aarch64-linux-gnu
 )
 
 find_library(WebP_MUX_LIBRARY
   NAMES webpmux
   HINTS ${WebP_PKGCONF_LIBRARY_DIRS}
+  PATHS
+    /usr/lib
+    /usr/local/lib
+    /opt/local/lib
+    /sw/lib
+  PATH_SUFFIXES
+    x86_64-linux-gnu
+    i386-linux-gnu
+    arm-linux-gnueabihf
+    aarch64-linux-gnu
 )
 
 # Version detection
