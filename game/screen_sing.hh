@@ -95,5 +95,6 @@ class ScreenSing: public Screen {
 	unsigned m_selectedVocal;
 	bool m_displayAutoPlay = false;
 	bool keyPressed = false;
+	VocalTrack m_mergedVocals; ///< Combined vocal track for multi-vocal rendering when game/combine_vocals is enabled
 };
 

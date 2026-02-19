@@ -48,6 +48,10 @@ to save the current settings to XML.
 		<short>Karaoke mode</short>
 		<long>Hide pitch wave, notes and scoring.</long>
 	</entry>
+	<entry name="game/combine_vocals" type="bool" value="true">
+		<short>Combine multiple vocals on single graph</short>
+		<long>When enabled, multiple vocal tracks (duets, harmonies) render on a single note graph instead of separate stacked graphs. This prevents overlap with instruments and allows up to 3 vocal parts in one display. When disabled, each vocal track gets its own graph positioned at TOP/BOTTOM.</long>
+	</entry>
 	<entry name="game/difficulty" type="uint" value="0">
 		<limits>
 			<enum>Normal</enum>

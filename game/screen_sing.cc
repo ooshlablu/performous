@@ -27,6 +27,8 @@
 #include <stdexcept>
 #include <cmath>
 #include <utility>
+#include <algorithm>
+#include <limits>
 
 namespace {
 	/// Add a flash message about the state of a config item
@@ -129,11 +131,55 @@ void ScreenSing::setupVocals() {
 		}
 
 		//if (shownTracks.size() > 2) throw std::runtime_error("Too many tracks chosen. Only two vocal tracks can be used simultaneously.")
-		for (auto const& trk: shownTracks) {
-			const auto scaler = NoteGraphScalerFactory(config).create(*trk);
-			auto layoutSingerPtr = std::unique_ptr<LayoutSinger>(std::make_unique<LayoutSinger>(*trk, m_database, scaler, theme));
+		
+		// Check if we should combine multiple vocals on a single graph
+		bool combineVocals = config["game/combine_vocals"].b() && shownTracks.size() > 1;
+		
+		if (combineVocals) {
+			// Create a single merged vocal track from all selected tracks
+			m_mergedVocals = VocalTrack("Combined Vocals");
+			m_mergedVocals.notes.clear();
+			m_mergedVocals.noteMin = std::numeric_limits<float>::max();
+			m_mergedVocals.noteMax = std::numeric_limits<float>::lowest();
+			m_mergedVocals.beginTime = std::numeric_limits<double>::max();
+			m_mergedVocals.endTime = std::numeric_limits<double>::lowest();
+			
+			// Merge all notes from selected tracks
+			for (auto const& trk: shownTracks) {
+				for (const auto& note : trk->notes) {
+					m_mergedVocals.notes.push_back(note);
+				}
+				m_mergedVocals.noteMin = std::min(m_mergedVocals.noteMin, trk->noteMin);
+				m_mergedVocals.noteMax = std::max(m_mergedVocals.noteMax, trk->noteMax);
+				m_mergedVocals.beginTime = std::min(m_mergedVocals.beginTime, trk->beginTime);
+				m_mergedVocals.endTime = std::max(m_mergedVocals.endTime, trk->endTime);
+			}
+			
+			// Sort merged notes by begin time
+			std::sort(m_mergedVocals.notes.begin(), m_mergedVocals.notes.end(), Note::ltBegin);
+			
+			// Calculate score factor from all tracks
+			m_mergedVocals.m_scoreFactor = 0.0;
+			for (auto const& trk: shownTracks) {
+				m_mergedVocals.m_scoreFactor += trk->m_scoreFactor;
+			}
+			if (shownTracks.size() > 0) {
+				m_mergedVocals.m_scoreFactor /= shownTracks.size();
+			}
+			
+			// Create single layout singer with merged track
+			const auto scaler = NoteGraphScalerFactory(config).create(m_mergedVocals);
+			auto layoutSingerPtr = std::unique_ptr<LayoutSinger>(std::make_unique<LayoutSinger>(m_mergedVocals, m_database, scaler, theme));
 			m_layout_singer.push_back(std::move(layoutSingerPtr));
+		} else {
+			// Original behavior: separate layout singer for each vocal track
+			for (auto const& trk: shownTracks) {
+				const auto scaler = NoteGraphScalerFactory(config).create(*trk);
+				auto layoutSingerPtr = std::unique_ptr<LayoutSinger>(std::make_unique<LayoutSinger>(*trk, m_database, scaler, theme));
+				m_layout_singer.push_back(std::move(layoutSingerPtr));
+			}
 		}
+		
 		// Note: Engine maps tracks with analyzers 1:1. If user doesn't have mics, we still want to have singer layout enabled but without engine...
 		if (!analyzers.empty()) m_engine = std::make_unique<Engine>(m_audio, selectedTracks, m_database);
 	}
