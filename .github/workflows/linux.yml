@@ -100,6 +100,8 @@ jobs:
             version: 22.04
           - os: ubuntu
             version: 24.04
+          - os: ubuntu
+            version: 26.04
           - os: debian
             version: 12
           - os: debian

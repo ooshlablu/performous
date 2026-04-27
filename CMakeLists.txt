@@ -11,6 +11,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
+# Use FindBoost directly
+set(Boost_NO_BOOST_CMAKE ON)
+
 if(NOT PERFORMOUS_VERSION)
     message("No project version specified. Determining latest tag..")
     include(GetGitRevisionDescription)

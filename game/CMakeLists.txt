@@ -85,11 +85,14 @@ set(SOURCES ${SOURCE_FILES} ${HEADER_FILES} ${RESOURCE_FILES})
 add_executable(performous ${SUBSYSTEM_WIN32} ${SOURCES})
 # Libraries
 
-find_package(Boost 1.55 CONFIG QUIET COMPONENTS program_options iostreams system locale)
+find_package(Boost 1.55 CONFIG QUIET COMPONENTS program_options iostreams locale)
 if(NOT Boost_FOUND)
-  find_package(Boost 1.55 REQUIRED COMPONENTS program_options iostreams system locale)
+	find_package(Boost 1.55 REQUIRED COMPONENTS program_options iostreams locale)
 endif()
-target_link_libraries(performous PRIVATE Boost::boost Boost::program_options Boost::iostreams Boost::system Boost::locale)
+target_link_libraries(performous PRIVATE Boost::boost Boost::program_options Boost::iostreams Boost::locale)
+if(TARGET Boost::system)
+	target_link_libraries(performous PRIVATE Boost::system)
+endif()
 
 find_package(ICU 65 REQUIRED uc data i18n io)
 target_link_libraries(performous PRIVATE ICU::uc ICU::data ICU::i18n ICU::io)
