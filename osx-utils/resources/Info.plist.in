@@ -28,6 +28,10 @@
 	<false/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Performous needs microphone access so you can sing and be scored in karaoke gameplay.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Performous needs camera access for optional webcam overlays and visual effects.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>@MACOSX_BUNDLE_COPYRIGHT@</string>
 </dict>

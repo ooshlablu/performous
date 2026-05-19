@@ -22,7 +22,7 @@
 #include "songorder/random_song_order.hh"
 #include "songorder/score_song_order.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <unicode/stsearch.h>
 
 #include <algorithm>

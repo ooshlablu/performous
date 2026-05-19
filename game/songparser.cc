@@ -3,7 +3,7 @@
 #include "util.hh"
 
 #include <boost/algorithm/string.hpp>
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <cmath>
 #include <fstream>

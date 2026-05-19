@@ -16,31 +16,77 @@ on:
 jobs:
   AppImage:
     name: Create the AppImage
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
+      contents: read
       security-events: write
+    env:
+      # Keep the architecture knobs in one place so this job can become a
+      # simple arch matrix once ARM64 packaging is enabled.
+      TOOL_ARCH: x86_64
+      APPIMAGE_ARCH: x86_64
+      LINUXDEPLOY_VERSION: 1-alpha-20251107-1
+      APPIMAGETOOL_VERSION: 1.9.1
     steps:
-      - name: Install the AppImage bundler and Performous deps
-        id: fetch_deps
-        run: |
-          wget -O appimage-builder-x86_64.AppImage.tar https://github.com/Lord-Kamina/appimage-builder/releases/download/continuous/appimage-builder_x86_64-AppImage.tar
-          tar xvf appimage-builder-x86_64.AppImage.tar --transform='s/.*\///'
-          mv appimage-builder-*-x86_64.AppImage appimage-builder-x86_64.AppImage
-          chmod +x appimage-builder-x86_64.AppImage
-          sudo mv appimage-builder-x86_64.AppImage /usr/local/bin/appimage-builder
-          sudo apt update
-          sudo apt-get -y install ca-certificates wget gpg
-          wget -O ./key.asc https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null
-          gpg -v -o /usr/share/keyrings/kitware-archive-keyring.gpg --dearmor ./key.asc
-          echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ noble main' | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
-          sudo apt-get -y update
-          test -f /usr/share/doc/kitware-archive-keyring/copyright || sudo rm /usr/share/keyrings/kitware-archive-keyring.gpg
-          sudo apt-get install kitware-archive-keyring
-          sudo apt-get install -y --no-install-recommends git cmake build-essential gettext help2man libopenblas-dev libfftw3-dev libicu-dev libepoxy-dev libsdl2-dev libfreetype6-dev libpango1.0-dev librsvg2-dev libxml++2.6-dev libavcodec-dev libavformat-dev libswscale-dev libjpeg-dev portaudio19-dev libglm-dev libboost-iostreams-dev libboost-locale-dev libboost-system-dev libboost-program-options-dev libssl-dev libcpprest-dev libgtest-dev libgmock-dev google-mock libportmidi-dev libopencv-dev libaubio-dev nlohmann-json3-dev libfmt-dev libfuse2 libspdlog-dev libwebp-dev
-
       - name: Checkout Git
         id: checkout_git
         uses: actions/checkout@v4
+
+      - name: Install build and packaging dependencies
+        id: fetch_deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            cmake \
+            desktop-file-utils \
+            file \
+            gettext \
+            help2man \
+            libaubio-dev \
+            libavcodec-dev \
+            libavformat-dev \
+            libboost-iostreams-dev \
+            libboost-locale-dev \
+            libboost-program-options-dev \
+            libboost-system-dev \
+            libcpprest-dev \
+            libepoxy-dev \
+            libfftw3-dev \
+            libfmt-dev \
+            libfreetype6-dev \
+            libgmock-dev \
+            libgtest-dev \
+            libglm-dev \
+            libicu-dev \
+            libjpeg-dev \
+            libopencv-dev \
+            libopenblas-dev \
+            libpango1.0-dev \
+            libportmidi-dev \
+            librsvg2-dev \
+            libsdl2-dev \
+            libspdlog-dev \
+            libssl-dev \
+            libswscale-dev \
+            libwebp-dev \
+            libxml++2.6-dev \
+            ninja-build \
+            nlohmann-json3-dev \
+            patchelf \
+            portaudio19-dev \
+            squashfs-tools \
+            wget
+
+      - name: Download AppImage tooling
+        run: |
+          mkdir -p .ci-tools
+          wget -q -O .ci-tools/linuxdeploy.AppImage \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/${LINUXDEPLOY_VERSION}/linuxdeploy-${TOOL_ARCH}.AppImage"
+          wget -q -O .ci-tools/appimagetool.AppImage \
+            "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-${TOOL_ARCH}.AppImage"
+          chmod +x .ci-tools/*.AppImage
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -50,29 +96,57 @@ jobs:
           queries: security-and-quality
           packs: +githubsecuritylab/codeql-cpp-queries
 
-      - name: Build the Code
+      - name: Configure and build Performous
         id: build_appimage
         run: |
-          export PERFORMOUS_PACKAGE_VERSION=${{ inputs.package_complete_version }}
-          mkdir build
-          cd build
-          cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_WEBSERVER=ON -DENABLE_WEBCAM=ON -DSELF_BUILT_CED=ALWAYS -DPERFORMOUS_VERSION=$PERFORMOUS_PACKAGE_VERSION ..
-          make -j$(nproc) install DESTDIR=../AppDir
-          cd ..
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DENABLE_WEBSERVER=ON \
+            -DENABLE_WEBCAM=ON \
+            -DSELF_BUILT_CED=AUTO \
+            -DPERFORMOUS_VERSION=${{ inputs.package_complete_version }}
+          cmake --build build --parallel
+          DESTDIR="${GITHUB_WORKSPACE}/AppDir" cmake --install build
+
+      - name: Prepare and validate the AppDir
+        run: |
+          install -Dm644 AppDir/usr/share/applications/performous.desktop AppDir/performous.desktop
+          ln -sfn usr/share/icons/hicolor/scalable/apps/performous.svg AppDir/performous.svg
+          ln -sfn performous.svg AppDir/.DirIcon
+          test -x AppDir/usr/bin/performous
+          test -f AppDir/performous.desktop
+          test -L AppDir/performous.svg
+          test -L AppDir/.DirIcon
+          desktop-file-validate AppDir/performous.desktop
+          file AppDir/usr/bin/performous
+          ldd AppDir/usr/bin/performous
+
+      - name: Bundle runtime libraries into AppDir
+        run: |
+          APPIMAGE_EXTRACT_AND_RUN=1 \
+          VERSION=${{ inputs.package_complete_version }} \
+          ./.ci-tools/linuxdeploy.AppImage \
+            --appdir AppDir \
+            -e AppDir/usr/bin/performous \
+            -d AppDir/performous.desktop \
+            -i AppDir/performous.svg
+          test -x AppDir/AppRun
+
+      - name: Create the AppImage
+        run: |
+          # Pull in our common build functions.
+          . .github/workflows/build_functions.sh
+          ARCH=${APPIMAGE_ARCH} \
+          APPIMAGE_EXTRACT_AND_RUN=1 \
+          VERSION=${{ inputs.package_complete_version }} \
+          ./.ci-tools/appimagetool.AppImage --comp zstd AppDir
+          package_name "$(pwd)" "*.AppImage" "${{ inputs.package_complete_version }}"
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:c-cpp"
-
-      - name: Bundle the AppImage
-        run: |
-          # Pull in our common build functions
-          . .github/workflows/build_functions.sh
-          export PERFORMOUS_PACKAGE_VERSION=${{ inputs.package_complete_version }}
-          appimage-builder --recipe AppImageBuilder.yml --skip-test
-          # Provided by the common build functions
-          package_name "$(pwd)" "*.AppImage" "${PERFORMOUS_PACKAGE_VERSION}"
 
       # Upload artifacts during pull-requests
       - name: Upload artifact

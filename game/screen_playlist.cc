@@ -6,7 +6,8 @@
 #include "util.hh"
 #include "i18n.hh"
 
-#include <fmt/chrono.h>
+#include <spdlog/fmt/fmt.h>
+#include <spdlog/fmt/chrono.h>
 
 ScreenPlaylist::ScreenPlaylist(Game &game, std::string const& name,Audio& audio, Songs& songs, Backgrounds& bgs):
 	Screen(game, name), m_audio(audio), m_songs(songs), m_backgrounds(bgs), keyPressed()

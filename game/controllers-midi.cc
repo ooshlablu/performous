@@ -4,7 +4,7 @@
 #include "fs.hh"
 #include "portmidi.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <regex>
 #include <unordered_map>

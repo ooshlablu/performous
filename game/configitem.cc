@@ -3,7 +3,7 @@
 #include "i18n.hh"
 #include "util.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <algorithm>
 #include <future>
 #include <iomanip>

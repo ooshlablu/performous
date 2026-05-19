@@ -140,6 +140,17 @@ jobs:
       - determine_version
       - create_release
 
+  Homebrew_Package:
+    name: Package macOS builds with Homebrew
+    uses: ./.github/workflows/homebrew.yml
+    secrets: inherit
+    with:
+      package_complete_version: ${{ needs.determine_version.outputs.complete_version }}
+      release_id: ${{ needs.create_release.outputs.release_id }}
+    needs:
+      - determine_version
+      - create_release
+
 
   # Pull in the Windows build workflow
   Windows_Packages:
