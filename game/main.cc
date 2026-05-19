@@ -27,7 +27,7 @@
 #include "screen_playlist.hh"
 
 #include <boost/program_options.hpp>
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <SDL_keyboard.h>
 #include <SDL_scancode.h>
 

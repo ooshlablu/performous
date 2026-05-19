@@ -43,10 +43,7 @@ def execute(command):
 	subprocess.run(command, shell=True, executable="/bin/bash", stdout=sys.stdout, stderr=subprocess.STDOUT, check=True)
 	
 def str_to_path(somePath: str) -> Path:
-	ret : Path = Path(somePath)
-	if somePath[0] == "~":
-		ret = somePath.expanduser()
-	return ret.resolve()
+	return Path(somePath).expanduser().resolve()
 
 
 def file_exists(command):
@@ -62,10 +59,12 @@ def check_installed(name : str) -> Optional[Path]:
 		return None
 
 def check_brew_formula(name : str, file : str) -> Optional[Path]:
-	p = subprocess.run(args = ["brew", "ls", "--verbose", name], encoding="utf-8", capture_output=True)
+	p = subprocess.run(args = ["brew", "--prefix", name], encoding="utf-8", capture_output=True)
 	if p.returncode == 0:
-		p2 = subprocess.run(args = ["grep", file], encoding="utf-8", capture_output=True, input=p.stdout)
-		return str_to_path(p2.stdout.strip()).parent
+		prefix = str_to_path(p.stdout.strip())
+		for _ in prefix.rglob(file):
+			return prefix
+		return None
 	else:
 		return None
 
@@ -110,27 +109,29 @@ def detect_prefix():
 	if brew_location != None:
 		brew_prefix = subprocess.run(args = ["brew", "--prefix"], encoding="utf-8", capture_output=True).stdout.replace("\n", "")
 		print("--- Homebrew install detected at: " + str(brew_location))
-		for opencv_version in ["4", "3"]:
-			check_opencv = check_brew_formula("opencv@{opencv_version}", "OpenCVConfig.cmake")
+		for formula_name, opencv_version in [("opencv", "4"), ("opencv@3", "3")]:
+			check_opencv = check_brew_formula(formula_name, "OpenCVConfig.cmake")
 			if check_opencv != None:
-				opencv_prefix = str(check_opencv.parent)
-				print("--- OpenCV {opencv_version} detected at: " + str(opencv_prefix) + "\n")
+				opencv_prefix = str(check_opencv)
+				print(f"--- OpenCV {opencv_version} detected at: {opencv_prefix}\n")
 				break
-		for ffmpeg_version in ["8", "7", "6", "5", "4"]:
-			check_ffmpeg = check_brew_formula(f"ffmpeg@{ffmpeg_version}", "libavcodec.pc")
+		for formula_name, ffmpeg_version in [("ffmpeg", "current"), ("ffmpeg@7", "7"), ("ffmpeg@6", "6"), ("ffmpeg@5", "5"), ("ffmpeg@4", "4")]:
+			check_ffmpeg = check_brew_formula(formula_name, "libavcodec.pc")
 			if check_ffmpeg != None:
-				ffmpeg_prefix = str(check_ffmpeg.parent)
+				ffmpeg_prefix = str(check_ffmpeg)
 				print(f"--- FFMpeg {ffmpeg_version} detected at: " + str(ffmpeg_prefix) + "\n")
 				break
-		check_openssl = check_brew_formula("openssl", "libcrypto.pc")
+		check_openssl = check_brew_formula("openssl@3", "libcrypto.pc")
+		if check_openssl == None:
+			check_openssl = check_brew_formula("openssl", "libcrypto.pc")
 		if check_openssl != None:
 			openssl_prefix = str(check_openssl)
-			openssl_root = f"-DOPENSSL_ROOT_DIR='{str(check_openssl.parent.parent)}'"
+			openssl_root = f"-DOPENSSL_ROOT_DIR='{str(check_openssl)}'"
 			print("--- OpenSSL detected at: " + str(openssl_prefix) + "\n")
 		check_icu = check_brew_formula("icu4c", "utypes.h")
 		if check_icu != None:
-			icu_root = f"-DICU_ROOT='{str(check_icu.parent.parent)}'"
-			print("--- ICU detected at: " + str(check_icu.parent.parent) + "\n")
+			icu_root = f"-DICU_ROOT='{str(check_icu)}'"
+			print("--- ICU detected at: " + str(check_icu) + "\n")
 	else:
 		print("--- Homebrew does not appear to be installed.\n")
 
@@ -232,16 +233,61 @@ def create_dmg(fancy: bool = True):
 		detach_retries=10
 	)
 
-def bundle_libs():
-	global performous_out_dir
-	print("Copying dependencies and fixing linkage inside Performous.app...")
-	
-	execute(fr"""
+def _run_bundle_command(bundle_prefix: str) -> subprocess.CompletedProcess:
+	bundle_cmd = fr"""
 		dylibbundler -od -b \
 		-x "{performous_out_dir}/Performous.app/Contents/MacOS/Performous" \
 		-d "{performous_out_dir}/Performous.app/Contents/Resources/lib" \
-		-p @executable_path/../Resources/lib/
-	""")
+		-p {bundle_prefix}
+	"""
+	print(str(bundle_cmd))
+	result = subprocess.run(
+		bundle_cmd,
+		shell=True,
+		executable="/bin/bash",
+		text=True,
+		capture_output=True
+	)
+	if result.stdout:
+		print(result.stdout, end="")
+	if result.stderr:
+		print(result.stderr, end="")
+	return result
+
+def _create_loader_path_symlinks() -> None:
+	lib_dir = performous_out_dir / "Performous.app/Contents/Resources/lib"
+	macos_dir = performous_out_dir / "Performous.app/Contents/MacOS"
+	created_links = 0
+	for dylib in lib_dir.glob("*.dylib"):
+		link_path = macos_dir / dylib.name
+		if link_path.exists() or link_path.is_symlink():
+			link_path.unlink()
+		link_path.symlink_to(Path("../Resources/lib") / dylib.name)
+		created_links += 1
+	print(f"Created {created_links} MacOS symlinks for @loader_path compatibility")
+
+def bundle_libs():
+	global performous_out_dir
+	print("Copying dependencies and fixing linkage inside Performous.app...")
+	primary_result = _run_bundle_command("@executable_path/../Resources/lib/")
+	if primary_result.returncode == 0:
+		return
+
+	combined_output = (primary_result.stdout or "") + (primary_result.stderr or "")
+	known_headerpad_failure = "larger updated load commands do not fit" in combined_output
+	if not known_headerpad_failure:
+		raise subprocess.CalledProcessError(primary_result.returncode, "dylibbundler")
+
+	print("Detected install_name_tool load-command size failure. Retrying with @loader_path fallback...")
+	lib_dir = performous_out_dir / "Performous.app/Contents/Resources/lib"
+	shutil.rmtree(path=lib_dir, ignore_errors=True)
+	lib_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+
+	fallback_result = _run_bundle_command("@loader_path/")
+	if fallback_result.returncode != 0:
+		raise subprocess.CalledProcessError(fallback_result.returncode, "dylibbundler")
+
+	_create_loader_path_symlinks()
 	return
 
 usageHelp = f"""\nPerformous macOS Bundler
@@ -334,7 +380,7 @@ if __name__ == "__main__":
 		out_dir = "out.xcode" if arguments["--xcode-project"] == True else "out"
 		performous_out_dir = performous_source_dir / "osx-utils" / out_dir
 		if arguments["--output"] != None:
-			print("\n--- WARNING: Can't find path to Output folder at " + arguments["--output"] + ", defaulting to " + performous_out_dir + "\n")
+			print("\n--- WARNING: Can't find path to Output folder at " + arguments["--output"] + ", defaulting to " + str(performous_out_dir) + "\n")
 			
 	if arguments["--flat-output"] != True:
 		performous_out_dir = performous_out_dir / f"Performous-{package_version}"
@@ -414,8 +460,8 @@ if __name__ == "__main__":
 		-S="{str(performous_source_dir)}" \
 		-B="{str(performous_build_dir)}"
 		"""
-	print(f"Generating Buildsystem with command:\n")
-	execute(command)
+		print(f"Generating Buildsystem with command:\n")
+		execute(command)
 
 	if arguments["--xcode-project"] == True:
 		if ask_user("Would you build the XCode project we just created?") == True:

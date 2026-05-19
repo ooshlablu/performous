@@ -16,13 +16,6 @@ on:
         required: false
         type: string
         default: "1.87"
-    secrets:
-      NGROK_SSH_TOKEN:
-        description: 'Token for SSH debug'
-        required: false
-      NGROK_SSH_PASS:
-        description: 'Pass for SSH debug'
-        required: false
 
 jobs:
   Install_MacPorts:
@@ -76,6 +69,7 @@ jobs:
           echo cxx_stdlib libc++ | tee -a /opt/local/etc/macports/macports.conf
           echo buildmakejobs 0 | tee -a /opt/local/etc/macports/macports.conf
           echo startupitem_type none | tee -a /opt/local/etc/macports/macports.conf
+          echo default_variants +python314 -python313 | tee -a /opt/local/etc/macports/macports.conf
           echo build_arch $(uname -m) | tee -a /opt/local/etc/macports/macports.conf
           #if [[ "$(uname -m)" == "arm64" ]]; then
           #  echo universal_archs arm64 x86_64 | tee -a /opt/local/etc/macports/macports.conf
@@ -118,7 +112,7 @@ jobs:
           echo macOS $(sw_vers -productVersion | cut -f1 -d.) | tee "${{ github.workspace }}/cache-key.txt"
           echo CPU Type: $(uname -m) | tee -a "${{ github.workspace }}/cache-key.txt"
 
-          port info --fullname ${MACOS_DEPS} boost.version=${{ inputs.boost_version }} | \
+          port info --fullname ${MACOS_DEPS} | \
           grep -v -e'^--$' | cut -w -f2-3 | \
           sed -E 's/@([[:digit:]]+)\.([[:digit:]]+)\.([[:digit:]]+){1}((\+|-)[a-zA-Z0-9_]+)*/@\1.\2/g' | \
           tee -a "${{ github.workspace }}/cache-key.txt"
@@ -133,7 +127,7 @@ jobs:
 
       - name: Try to restore cache
         id: restore_cache
-        uses: Lord-Kamina/always-upload-cache/restore@refresh-cache
+        uses: actions/cache/restore@v4
         with:
           # Due to a very long-standing bug in cache, excluding only works if all specified paths have the same depth.
           path: |
@@ -146,14 +140,6 @@ jobs:
           brew unlink $(brew list --formula)
           echo cmake: $(which cmake)
 
-#      - name: Start SSH session
-#        if: ${{ matrix.os == 'macos-15' && always() }}
-#        id: ssh_debug
-#        uses: Lord-Kamina/debug-via-ssh@main
-#        with:
-#          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_SSH_TOKEN }}
-#          SSH_PASS: ${{ secrets.NGROK_SSH_PASS }}
-
       - name: Install Dependencies
         # First, we install packages that are both direct dependencies of performous, as well as of other packages that we will eventually need.
         # The idea is to build from source everything performous actually depends on to run (so, direct and transitive RUNTIME dependencies),
@@ -164,7 +150,7 @@ jobs:
           if [[ "${{ steps.restore_cache.outputs.cache-hit }}" == "true" ]]; then
             echo "Installed but inactive ports: "
             sudo port -v installed inactive
-            sudo port activate -f installed boost.version=${{ inputs.boost_version }}
+            sudo port activate -f installed
             sudo port -v sync
           else
             sudo portindex /opt/custom_portfiles
@@ -175,10 +161,10 @@ jobs:
           sudo port install -s icu gettext-runtime
 
           set +x
-          try_binary_first autoconf autoconf-archive automake bison cargo cctools libgcc gcc15 gcc15-libcxx clang-18 cmake docbook-xml docbook-xsl-nons flex gi-docgen git gmake gperf gtk-doc itstool meson mm-common nasm ninja p7zip perl5 pkgconfig py313-docutils py313-build py313-cython py313-installer py313-wheel python313 rust texinfo unzip vim websocketpp xmlto yasm boost.version=${{ inputs.boost_version }}
+          try_binary_first autoconf autoconf-archive automake bison cargo cctools libgcc gcc15 gcc15-libcxx clang-18 cmake docbook-xml docbook-xsl-nons flex gi-docgen git gmake gperf gtk-doc itstool meson mm-common nasm ninja p7zip perl5 pkgconfig rust texinfo unzip vim websocketpp xmlto yasm
 
           set -x
-          sudo port -s install ${MACOS_DEPS} boost.version=${{ inputs.boost_version }}
+          sudo port -s install ${MACOS_DEPS}
 
           echo "Installed ports: "
           port installed
@@ -190,7 +176,7 @@ jobs:
           sudo port -N rev-upgrade
           sudo port -N uninstall inactive || true
           sudo port deactivate -f installed
-          sudo port activate -f zstd boost.version=${{ inputs.boost_version }}
+          sudo port activate -f zstd
 
           # Delete these folders, as we don't want the cache restore overwriting them.
           # sudo rm -Rfv /opt/local/var/macports/sources/rsync.macports.org/macports/release/tarballs/base*
@@ -206,11 +192,9 @@ jobs:
           tar -czf ./MacPorts-log-${{ matrix.os }}.tar.gz ./logs ./build
           echo "log_path=/opt/local/var/macports/MacPorts-log-${{ matrix.os }}.tar.gz" >> $GITHUB_OUTPUT
       - name: Cache dependencies
-        uses: Lord-Kamina/always-upload-cache/save@refresh-cache
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@v4
         with:
-          refresh-cache: true
           # Due to a very long-standing bug in cache, excluding only works if all specified paths have the same depth.
           path: |
             /opt/local/
@@ -220,7 +204,7 @@ jobs:
       - name: Build package
         id: build_package
         run: |
-          sudo port activate -f installed boost.version=${{ inputs.boost_version }}
+          sudo port activate -f installed
           cd performous/osx-utils
           chmod +x ./macos-bundler.py
           python3 -m venv ./bundler-venv

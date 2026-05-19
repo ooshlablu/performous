@@ -2,7 +2,7 @@
 #include "fs.hh"
 #include "util.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 namespace cache {
 	fs::path constructSVGCacheFileName(fs::path const& svgfilename, float factor){

@@ -163,7 +163,7 @@ jobs:
 
           # Run the build inside the docker containers using the
           # build script that was pulled inside during the build
-          docker run --env EXTRA_CMAKE_ARGS --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} ./build_performous.sh -g -D /github_actions_build/ -E ${EXTRA_CMAKE_ARGS} -R ${PERFORMOUS_RELEASE_TYPE}
+          docker run --env EXTRA_CMAKE_ARGS --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} /github_actions_build/docker/build_performous.sh -g -D /github_actions_build/ -E ${EXTRA_CMAKE_ARGS} -R ${PERFORMOUS_RELEASE_TYPE}
 
           # Provided by the common build functions
           package_name "$(pwd)/build" "Performous*-Linux.*" "${PACKAGE_VERSION}" "${{ matrix.os }}" "${{ matrix.version }}"
@@ -171,7 +171,7 @@ jobs:
       - name: Run unit tests
         run: |
           # Run the containers with the script for each testing suite
-          docker run --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} ./run_tests.sh
+          docker run --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} /github_actions_build/docker/run_tests.sh
 
       # Upload artifacts during pull-requests
       - name: Upload artifact

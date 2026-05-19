@@ -3,7 +3,7 @@
 #include "logger_subsystem.hh"
 #include "platform.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <shared_mutex>
 #include <stdexcept>
@@ -21,6 +21,7 @@ using namespace std::string_view_literals;
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/version.h>
 
 #if (BOOST_OS_WINDOWS)
 #include <cstdint>
@@ -107,6 +108,7 @@ class SpdLogger {
 	static LoggerPtr m_defaultLogger;
 	static LoggerPtr m_ProfilerLogger;
 	static void writeLogHeader(spdlog::filename_t filename, std::FILE* fd, std::string header);
+	static void writeLogHeaderCompat(spdlog::filename_t filename, std::string header);
 	static void initializeSinks(spdlog::level::level_enum const& consoleLevel = spdlog::level::info);
 	static LoggerPtr constructLogger(const LogSystem system);
 	static std::unique_ptr<StderrGrabber> grabber;

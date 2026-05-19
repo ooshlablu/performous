@@ -5,7 +5,7 @@
 #include "log.hh"
 #include "util.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <SDL_events.h>
 
 #include <climits>

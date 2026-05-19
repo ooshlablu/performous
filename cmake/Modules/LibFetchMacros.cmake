@@ -49,7 +49,30 @@ function (libfetch_git_pkg PREFIX)
 		SOURCE_DIR     ${pkgname}-src
 	)
 
-	FetchContent_MakeAvailable(${pkgname})
+	FetchContent_GetProperties(${pkgname})
+	if (NOT ${pkgname}_POPULATED)
+		FetchContent_Populate(${pkgname})
+	endif()
+
+	# Aubio fork currently hard-requires MODULE mode FFTW lookup.
+	# Patch before add_subdirectory so subproject configure does not fail.
+	if (PREFIX STREQUAL "Aubio")
+		set(_aubio_cmake "${${pkgname}_SOURCE_DIR}/CMakeLists.txt")
+		if (EXISTS "${_aubio_cmake}")
+			file(READ "${_aubio_cmake}" _aubio_contents)
+			set(_aubio_patch [=[find_package(PkgConfig REQUIRED)
+pkg_check_modules(FFTW3 REQUIRED fftw3f)
+set(FFTW3F_LIBRARY "${FFTW3_LIBRARIES}")
+set(FFTW3_INCLUDE_DIR "${FFTW3_INCLUDE_DIRS}")]=])
+			string(REPLACE "find_package(FFTW3 COMPONENTS single REQUIRED MODULE)" "${_aubio_patch}" _aubio_patched "${_aubio_contents}")
+			if (NOT _aubio_patched STREQUAL _aubio_contents)
+				file(WRITE "${_aubio_cmake}" "${_aubio_patched}")
+				message(STATUS "Patched aubio FFTW discovery in ${_aubio_cmake}")
+			endif()
+		endif()
+	endif()
+
+	add_subdirectory("${${pkgname}_SOURCE_DIR}" "${${pkgname}_BINARY_DIR}" EXCLUDE_FROM_ALL)
 
 	if (pkgfindpath)
 		find_path(${PREFIX}_INCLUDE_DIR NAMES ${pkgfindpath} HINTS ${${pkgname}_SOURCE_DIR} ${${pkgname}_SOURCE_DIR}/include)

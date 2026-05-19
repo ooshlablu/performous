@@ -22,7 +22,7 @@
 #include "notegraphscalerfactory.hh"
 #include "graphic/video_driver.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <iostream>
 #include <stdexcept>
 #include <cmath>
