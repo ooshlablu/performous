@@ -3,7 +3,7 @@
 #include "chrono.hh"
 #include "log.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <iomanip>
 #include <iostream>

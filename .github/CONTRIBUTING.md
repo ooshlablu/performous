@@ -184,14 +184,23 @@ and also these, in `~/.macports/macports.conf` (largely they're the same things 
 
 ### MacOS with Homebrew
 
-Building with Homebrew is easier than with MacPorts. However, creation of a software bundle from a Homebrew-build fails, so you will need to run Performous from console.
+Building with Homebrew is supported for both local builds and the GitHub Actions packaging workflow. If you want the macOS bundler to target Homebrew explicitly, invoke it with `--prefer-homebrew`.
 
 ```bash
-brew install boost cmake ffmpeg help2man icu4c portaudio portmidi \
-    opencv libepoxy librsvg libxml++3 sdl2
+brew install aubio boost cairo cmake cpprestsdk dylibbundler ffmpeg@7 \
+   fftw fmt fontconfig freetype glm googletest help2man icu4c libepoxy \
+   librsvg libxml++3 nlohmann-json opencv openssl pango pkg-config \
+   portaudio portmidi sdl2
 ```
 
-Then follow the usual Performous build instructions. No special flags are required and you can do make install without sudo.
+Then run the macOS bundler from `osx-utils` with Homebrew selected:
+
+```bash
+python3 ./macos-bundler.py --prefer-homebrew --enable-webserver=on \
+   --enable-midi=on --enable-webcam=on --build-tests=on
+```
+
+If you need the same CMake version as CI, replace Homebrew's current `cmake` formula with the pinned 3.31.6 formula before bundling.
 
 ### Windows
 

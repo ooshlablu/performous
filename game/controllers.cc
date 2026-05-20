@@ -5,7 +5,7 @@
 #include "libxml++.hh"
 #include "unicode.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <SDL_joystick.h>
 #include <SDL_keyboard.h>
 

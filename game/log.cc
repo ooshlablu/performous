@@ -7,7 +7,8 @@
 
 #include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/stream.hpp>
-#include <fmt/chrono.h>
+#include <spdlog/fmt/fmt.h>
+#include <spdlog/fmt/chrono.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/ostream_sink.h>
 #include <spdlog/sinks/rotating_file_sink.h>
@@ -187,8 +188,10 @@ void SpdLogger::initializeSinks(spdlog::level::level_enum const& consoleLevel) {
 	
 	stderr_sink->set_pattern(formatString); //Need to set it separately for the header.
 
+#if (SPDLOG_VER_MAJOR > 1) || (SPDLOG_VER_MAJOR == 1 && SPDLOG_VER_MINOR >= 10)
 	spdlog::file_event_handlers handlers;
 	handlers.after_open = [logHeader](spdlog::filename_t filename, std::FILE *fstream) { writeLogHeader(filename, fstream, logHeader); };
+#endif
 
 	m_sink->add_sink(stdout_sink);
 	m_sink->add_sink(stderr_sink);
@@ -200,9 +203,17 @@ void SpdLogger::initializeSinks(spdlog::level::level_enum const& consoleLevel) {
 
 	stdout_sink->set_level(consoleLevel); // Set console level before opening file to prevent trace from the file rotation.
 
-	auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(filename, 1024 * 1024 * 3, 5, true, handlers);
+	std::shared_ptr<spdlog::sinks::rotating_file_sink_mt> file_sink;
+#if (SPDLOG_VER_MAJOR > 1) || (SPDLOG_VER_MAJOR == 1 && SPDLOG_VER_MINOR >= 10)
+	file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(filename, 1024 * 1024 * 3, 5, true, handlers);
 
 	m_profilerSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(profilerLogFilename, true, handlers);
+#else
+	file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(filename, 1024 * 1024 * 3, 5, true);
+	m_profilerSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(profilerLogFilename, true);
+	writeLogHeaderCompat(filename, logHeader);
+	writeLogHeaderCompat(profilerLogFilename, logHeader);
+#endif
 
 	m_sink->add_sink(file_sink);
 
@@ -231,6 +242,23 @@ void SpdLogger::toggleProfilerLogger() {
 	else {
 		m_sink->remove_sink(m_profilerSink);
 		notice(LogSystem::LOGGER, "Stopping profiler...");
+	}
+}
+
+void SpdLogger::writeLogHeaderCompat(spdlog::filename_t filename, std::string header) {
+	if (fs::path _filename{filename}; fs::exists(_filename) && fs::file_size(_filename) >30) {
+		trace(LogSystem::LOGGER, "Not writing header to {}. File is not empty, probably a previous log being rotated.", filename);
+		return;
+	}
+	header.append("\n");
+	std::ofstream stream(fs::path{filename}, std::ios::app);
+	if (!stream.is_open()) {
+		error(LogSystem::LOGGER, "Unable to write to logfile at {}, invalid stream.", filename);
+		return;
+	}
+	stream << header;
+	if (!stream.good()) {
+		error(LogSystem::LOGGER, "Unable to write to logfile at {}.", filename);
 	}
 }
 

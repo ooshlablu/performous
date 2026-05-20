@@ -3,7 +3,7 @@
 #include "fs.hh"
 #include "log.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <cerrno>
 #include <cstdlib>

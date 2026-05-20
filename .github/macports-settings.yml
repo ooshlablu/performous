@@ -5,7 +5,6 @@ variants:
     - clang18
     - gfortran
     - ffmpeg7
-    - python313
     - quartz
   deselect:
     - x11

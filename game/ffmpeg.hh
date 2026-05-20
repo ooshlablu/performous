@@ -7,7 +7,7 @@
 
 #include "aubio/aubio.h"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <atomic>
 #include <condition_variable>
