@@ -9,7 +9,7 @@
 #include "screen_intro.hh"
 #include "util.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <algorithm>
 #include <cmath>

@@ -2,7 +2,7 @@
 
 #include "config.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <cstdint>
 #include <filesystem>

@@ -1,7 +1,7 @@
 #include "musicalscale.hh"
 #include "util.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <stdexcept>
 

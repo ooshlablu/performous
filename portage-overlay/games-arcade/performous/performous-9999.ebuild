@@ -107,7 +107,7 @@ src_configure() {
 		mycmakeargs+=(
 			-DSELF_BUILT_GIT_BASE=${WORKDIR}/deps/
 			-DSELF_BUILT_AUBIO=NEVER
-			-DSELF_BUILT_CED=ALWAYS
+			-DSELF_BUILT_CED=AUTO
 		)
 	fi
 	cmake_src_configure

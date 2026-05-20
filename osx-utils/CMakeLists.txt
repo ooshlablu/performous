@@ -3,6 +3,14 @@ cmake_minimum_required(VERSION 3.19)
 set(PERFORMOUS_SEMVER "" CACHE STRING "Version in semver format")
 set(PERFORMOUS_SHORT_VERSION "" CACHE STRING "Short version string")
 
+if(NOT PERFORMOUS_SEMVER)
+	set(PERFORMOUS_SEMVER "${PROJECT_VERSION}")
+endif()
+
+if(NOT PERFORMOUS_SHORT_VERSION)
+	set(PERFORMOUS_SHORT_VERSION "${PROJECT_VERSION}")
+endif()
+
 set_target_properties(performous PROPERTIES
 	OUTPUT_NAME "Performous"
 	MACOSX_BUNDLE TRUE
@@ -40,12 +48,14 @@ string(REPLACE "${PERFORMOUS_SYSTEM_PREFIX}/share"
 	"../../../Resources" PERFORMOUS_FONTS_CONF
 	"${PERFORMOUS_FONTS_CONF}")
 
+set(PERFORMOUS_FONTCONFIG_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SYSCONFDIR}/fonts")
+file(MAKE_DIRECTORY "${PERFORMOUS_FONTCONFIG_DIR}/conf.d")
+
 file(WRITE
-	"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SYSCONFDIR}/fonts/fonts.conf"
+	"${PERFORMOUS_FONTCONFIG_DIR}/fonts.conf"
 	"${PERFORMOUS_FONTS_CONF}")
 
 file(GLOB fontconfig_rules "${PERFORMOUS_SYSTEM_PREFIX}/etc/fonts/conf.d/*")
-file(MAKE_DIRECTORY "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_SYSCONFDIR}/fonts/conf.d")
 
 # Iterate over the files and resolve symlinks
 foreach(file_path ${fontconfig_rules})

@@ -14,7 +14,7 @@
 #include "controllers.hh"
 #include "notegraphscalerfactory.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <iostream>
 

@@ -9,7 +9,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <stdexcept>
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 namespace {
 	#if 0 // Here is some dummy gettext calls to populate the dictionary

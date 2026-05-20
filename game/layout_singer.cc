@@ -7,7 +7,7 @@
 #include "graphic/color_trans.hh"
 
 #include <list>
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 LayoutSinger::LayoutSinger(VocalTrack& vocal, Database& database, NoteGraphScalerPtr const& scaler, std::shared_ptr<ThemeSing> theme):
   m_vocal(vocal), m_noteGraph(vocal, scaler), m_lyricit(vocal.notes.begin()), m_lyrics(), m_database(database), m_theme(theme), m_hideLyrics() {

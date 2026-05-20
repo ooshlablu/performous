@@ -8,7 +8,7 @@
 #include "../platform.hh"
 #include "../unicode.hh"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <portaudio.h>
 
 #include <cstddef>

@@ -6,6 +6,7 @@ set(Aubio_GIT_VERSION "master")
 #set(BLA_VENDOR OpenBLAS)
 set(BLA_PKGCONFIG_BLAS openblas)
 find_package(BLAS REQUIRED)
+find_package(PkgConfig REQUIRED)
 
 # also Accelerate.framework for mac
 
@@ -17,32 +18,40 @@ endif()
 
 if(SELF_BUILT_AUBIO STREQUAL "ALWAYS")
 	message(STATUS "aubio forced to build from source")
+	pkg_check_modules(FFTW3F REQUIRED IMPORTED_TARGET fftw3f)
 	libfetch_git_pkg(Aubio
 		REPOSITORY ${SELF_BUILT_GIT_BASE}/aubio.git
 		REFERENCE  ${Aubio_GIT_VERSION}
 		#FIND_PATH  aubio/aubio.h
 	)
 
-	target_link_libraries(aubio PRIVATE ${BLAS_LIBRARIES})
+	if(TARGET aubio)
+		target_link_libraries(aubio PUBLIC ${BLAS_LIBRARIES} PkgConfig::FFTW3F)
+	else()
+		message(FATAL_ERROR "Expected aubio target after self-build, but target 'aubio' was not created")
+	endif()
 elseif(SELF_BUILT_AUBIO STREQUAL "NEVER")
-	find_package(PkgConfig REQUIRED)
 	pkg_check_modules(AUBIO REQUIRED QUIET IMPORTED_TARGET GLOBAL aubio>=${Aubio_FIND_VERSION})
 	add_library(aubio ALIAS PkgConfig::AUBIO)
 	target_link_libraries(PkgConfig::AUBIO INTERFACE ${BLAS_LIBRARIES})
 	set(Aubio_VERSION ${AUBIO_VERSION})
 	set(Aubio_INCLUDE_DIRS ${AUBIO_INCLUDE_DIRS})
 elseif(SELF_BUILT_AUBIO STREQUAL "AUTO")
-	find_package(PkgConfig REQUIRED)
 	pkg_check_modules(AUBIO QUIET IMPORTED_TARGET GLOBAL aubio>=${Aubio_FIND_VERSION})
 	if(NOT AUBIO_FOUND)
 		message(STATUS "aubio build from source because not found on system")
+		pkg_check_modules(FFTW3F REQUIRED IMPORTED_TARGET fftw3f)
 		libfetch_git_pkg(Aubio
 			REPOSITORY ${SELF_BUILT_GIT_BASE}/aubio.git
 			REFERENCE  ${Aubio_GIT_VERSION}
 			#FIND_PATH  aubio/aubio.h
 		)
 
-		target_link_libraries(aubio PRIVATE ${BLAS_LIBRARIES})
+		if(TARGET aubio)
+			target_link_libraries(aubio PUBLIC ${BLAS_LIBRARIES} PkgConfig::FFTW3F)
+		else()
+			message(FATAL_ERROR "Expected aubio target after self-build, but target 'aubio' was not created")
+		endif()
 	else()
 		add_library(aubio ALIAS PkgConfig::AUBIO)
 		target_link_libraries(PkgConfig::AUBIO INTERFACE ${BLAS_LIBRARIES})
