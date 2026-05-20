@@ -1,0 +1,261 @@
+name: Build MacOS Packages
+
+on:
+  # Run when called from other workflows
+  workflow_call:
+    inputs:
+      package_complete_version:
+        description: 'The output of the complete_version of the "determine_version" job from the build_and_release.yml workflow'
+        required: true
+        type: string
+      release_id:
+        description: 'The output of the "create_release" job from the build_and_release.yml workflow'
+        required: true
+        type: string
+      boost_version:
+        required: false
+        type: string
+        default: "1.87"
+
+jobs:
+  Install_MacPorts:
+    strategy:
+      matrix:
+        os: [ 'macos-15-intel', 'macos-15' ]
+    name: Install Macports
+    runs-on: '${{ matrix.os }}'
+    env:
+      MACOS_DEPS: >-
+        boost boost.version=${{ inputs.boost_version }}
+        cairo
+        cmake
+        cpprestsdk boost.version=${{ inputs.boost_version }}
+        dylibbundler
+        ffmpeg7
+        fftw-3-single
+        libfmt11
+        fontconfig
+        freetype
+        glm
+        gtest
+        help2man
+        icu
+        libepoxy
+        librsvg
+        libsdl2
+        libxmlxx5
+        nlohmann-json
+        opencv4
+        openssl
+        pango
+        portaudio
+        portmidi
+    steps:
+      - name: Checkout Git
+        id: checkout_git
+        uses: actions/checkout@v4
+        with:
+          path: performous
+
+      - name: Install Macports
+        uses: Lord-Kamina/setup-macports@main
+        with:
+          parameters: ./performous/.github/macports-settings.yml
+          enable-cache: 'false'
+
+      - name: Amend macports configuration
+        run: |
+          echo macosx_deployment_target 12.0 | tee -a /opt/local/etc/macports/macports.conf
+          echo cxx_stdlib libc++ | tee -a /opt/local/etc/macports/macports.conf
+          echo buildmakejobs 0 | tee -a /opt/local/etc/macports/macports.conf
+          echo startupitem_type none | tee -a /opt/local/etc/macports/macports.conf
+          echo default_variants +python314 -python313 | tee -a /opt/local/etc/macports/macports.conf
+          echo build_arch $(uname -m) | tee -a /opt/local/etc/macports/macports.conf
+          #if [[ "$(uname -m)" == "arm64" ]]; then
+          #  echo universal_archs arm64 x86_64 | tee -a /opt/local/etc/macports/macports.conf
+          #fi
+          echo build_arch $(uname -m) | tee -a /opt/local/etc/macports/macports.conf
+          echo boost.version ${{ inputs.boost_version }} | tee -a /opt/local/etc/macports/macports.conf
+
+          sudo mkdir -p /opt/custom_portfiles/www/
+          portindex \
+          /opt/local/var/macports/sources/rsync.macports.org/macports/release/tarballs/ports/
+          sudo cp -Rvf $(dirname $(port file cpprestsdk)) /opt/custom_portfiles/www/
+          sudo mkdir -p /opt/custom_portfiles/www/cpprestsdk/files
+
+          sudo cp -vf ./performous/.github/support-boost-1.87.patch /opt/custom_portfiles/www/cpprestsdk/files/
+
+          sudo mkdir -p /opt/custom_portfiles/graphics/
+          sudo cp -Rv $(dirname $(port file librsvg)) /opt/custom_portfiles/graphics/
+
+          sudo cat <<EOF | sudo tee -a /opt/custom_portfiles/graphics/librsvg/Portfile
+          configure.ldflags-append -Wl,-headerpad_max_install_names
+          EOF
+
+          #sudo cp -Rv $(dirname $(port file harfbuzz))/files /opt/custom_portfiles/graphics/harfbuzz/
+
+          sudo cat <<EOF | sudo tee -a /opt/custom_portfiles/www/cpprestsdk/Portfile
+            patchfiles-append support-boost-1.87.patch
+            configure.args-append -DCPPREST_EXCLUDE_WEBSOCKETS=ON
+            depends_build-delete port:websocketpp
+          EOF
+
+          sudo cat <<EOF | sudo tee /opt/local/etc/macports/sources.conf
+          file:///opt/custom_portfiles [nosync]
+          rsync://rsync.macports.org/macports/release/tarballs/ports.tar [default]
+          EOF
+
+          sudo portindex /opt/custom_portfiles
+
+      - name: Generate versions file for cache-key.
+        run: |
+          echo macOS $(sw_vers -productVersion | cut -f1 -d.) | tee "${{ github.workspace }}/cache-key.txt"
+          echo CPU Type: $(uname -m) | tee -a "${{ github.workspace }}/cache-key.txt"
+
+          port info --fullname ${MACOS_DEPS} | \
+          grep -v -e'^--$' | cut -w -f2-3 | \
+          sed -E 's/@([[:digit:]]+)\.([[:digit:]]+)\.([[:digit:]]+){1}((\+|-)[a-zA-Z0-9_]+)*/@\1.\2/g' | \
+          tee -a "${{ github.workspace }}/cache-key.txt"
+          
+          echo contents of cache-key-file: 
+          cat "${{ github.workspace }}/cache-key.txt"
+
+      - name: Compute cache-key
+        id: cache-key
+        run: |
+          echo "computed_cache_key=macports-${{matrix.os}}-${{ hashFiles('cache-key.txt') }}" >> $GITHUB_OUTPUT
+
+      - name: Try to restore cache
+        id: restore_cache
+        uses: actions/cache/restore@v4
+        with:
+          # Due to a very long-standing bug in cache, excluding only works if all specified paths have the same depth.
+          path: |
+            /opt/local/
+            /Applications/MacPorts/
+          key: '${{ steps.cache-key.outputs.computed_cache_key }}'
+
+      - name: Unlink Homebrew
+        run: |
+          brew unlink $(brew list --formula)
+          echo cmake: $(which cmake)
+
+      - name: Install Dependencies
+        # First, we install packages that are both direct dependencies of performous, as well as of other packages that we will eventually need.
+        # The idea is to build from source everything performous actually depends on to run (so, direct and transitive RUNTIME dependencies),
+        # and to install from packaged binaries everything else we need but not at runtime (i.e. cmake and various versions of python and/or compilers)
+        run: |
+          . "${{ github.workspace}}/performous/.github/try_binary_first.sh"
+          set -x
+          if [[ "${{ steps.restore_cache.outputs.cache-hit }}" == "true" ]]; then
+            echo "Installed but inactive ports: "
+            sudo port -v installed inactive
+            sudo port activate -f installed
+            sudo port -v sync
+          else
+            sudo portindex /opt/custom_portfiles
+          fi
+
+          echo buildfromsource ifneeded | tee -a /opt/local/etc/macports/macports.conf
+          echo keeplogs yes | tee -a /opt/local/etc/macports/macports.conf
+          sudo port install -s icu gettext-runtime
+
+          set +x
+          try_binary_first autoconf autoconf-archive automake bison cargo cctools libgcc gcc15 gcc15-libcxx clang-18 cmake docbook-xml docbook-xsl-nons flex gi-docgen git gmake gperf gtk-doc itstool meson mm-common nasm ninja p7zip perl5 pkgconfig rust texinfo unzip vim websocketpp xmlto yasm
+
+          set -x
+          sudo port -s install ${MACOS_DEPS}
+
+          echo "Installed ports: "
+          port installed
+
+          sudo port -v uninstall gcc* clang* llvm* || true
+          sudo port clean --all installed
+      
+          # Deactivate everything but zstd before caching, in order to reduce the cache size. It's easier to do it like this than actually manually excluding zstd and its dependencies.
+          sudo port -N rev-upgrade
+          sudo port -N uninstall inactive || true
+          sudo port deactivate -f installed
+          sudo port activate -f zstd
+
+          # Delete these folders, as we don't want the cache restore overwriting them.
+          # sudo rm -Rfv /opt/local/var/macports/sources/rsync.macports.org/macports/release/tarballs/base*
+          # sudo rm -Rfv /opt/local/var/macports/sources/rsync.macports.org/macports/release/tarballs/ports/_resources
+          # sudo rm -Rfv /opt/local/libexec/macports
+          # sudo rm -fv /opt/local/bin/port*
+
+      - name: Get logs from last job
+        if: ${{ !cancelled() }}
+        id: get-logs
+        run: |
+          cd /opt/local/var/macports
+          tar -czf ./MacPorts-log-${{ matrix.os }}.tar.gz ./logs ./build
+          echo "log_path=/opt/local/var/macports/MacPorts-log-${{ matrix.os }}.tar.gz" >> $GITHUB_OUTPUT
+      - name: Cache dependencies
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@v4
+        with:
+          # Due to a very long-standing bug in cache, excluding only works if all specified paths have the same depth.
+          path: |
+            /opt/local/
+            /Applications/MacPorts/
+          key: '${{ steps.cache-key.outputs.computed_cache_key }}'
+
+      - name: Build package
+        id: build_package
+        run: |
+          sudo port activate -f installed
+          cd performous/osx-utils
+          chmod +x ./macos-bundler.py
+          python3 -m venv ./bundler-venv
+          source ./bundler-venv/bin/activate
+          pip3 install -r ./macos-bundler-requirements.txt
+          python3 ./macos-bundler.py --flat-output --package-version="${{ inputs.package_complete_version }}" --enable-webserver=on --enable-midi=on --enable-webcam=on --build-tests=on --target=12.0 --prefer-macports
+          PACKAGE_PATH="${{ github.workspace }}/performous/osx-utils/out/Performous-${{ inputs.package_complete_version }}-$(uname -m).dmg"
+          MASTER_PACKAGE_PATH="${{ github.workspace }}/performous/osx-utils/out/Performous-master[${{ inputs.package_complete_version }}]-$(uname -m).dmg"
+          cp -v ${PACKAGE_PATH} ${MASTER_PACKAGE_PATH}
+          echo "ARTIFACT_PATH=${PACKAGE_PATH}" >> ${GITHUB_ENV}
+          echo "ARTIFACT_NAME=$(basename ${PACKAGE_PATH})" >> ${GITHUB_ENV}
+          echo "MASTER_ARTIFACT_PATH=${MASTER_PACKAGE_PATH}" >> ${GITHUB_ENV}
+          echo "MASTER_ARTIFACT_NAME=$(basename ${MASTER_PACKAGE_PATH})" >> ${GITHUB_ENV}
+      - name: Run unittests directly called.
+        run: |
+          cd "${{ github.workspace }}/performous/build/testing"
+          ./performous_test --gtest_filter=UnitTest*
+      - name: Run unittests by ctest.
+        run: |
+          cd "${{ github.workspace }}/performous/build"
+          make test
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: ${{ github.event_name == 'pull_request' }}
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.ARTIFACT_PATH }}
+
+      - name: Upload artifact with unified name
+        if: ${{ github.ref == 'refs/heads/master' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.MASTER_ARTIFACT_NAME }}
+          path: ${{ env.MASTER_ARTIFACT_PATH }}
+
+      - name: Upload artifacts to tagged release
+        id: upload_assets
+        if: ${{ github.event_name != 'pull_request' && github.ref_type == 'tag' }}
+        uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          release_id: ${{ inputs.release_id }}
+          file: ${{ env.ARTIFACT_PATH }}
+
+      - name: Upload logs
+        if: ${{ steps.get-logs.outputs.log_path != null && !cancelled() }}
+        id: upload-logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: "MacPorts-log-${{ matrix.os }}.tar.gz"
+          path: "${{ steps.get-logs.outputs.log_path }}"
+

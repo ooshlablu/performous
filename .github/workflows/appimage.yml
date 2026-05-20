@@ -1,0 +1,176 @@
+name: Build AppImage Packages
+
+on:
+  # Run when called from other workflows
+  workflow_call:
+    inputs:
+      package_complete_version:
+        description: 'The output of the complete_version of the "determine_version" job from the build_and_release.yml workflow'
+        required: true
+        type: string
+      release_id:
+        description: 'The output of the "create_release" job from the build_and_release.yml workflow'
+        required: true
+        type: string
+
+jobs:
+  AppImage:
+    name: Create the AppImage
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      # Keep the architecture knobs in one place so this job can become a
+      # simple arch matrix once ARM64 packaging is enabled.
+      TOOL_ARCH: x86_64
+      APPIMAGE_ARCH: x86_64
+      LINUXDEPLOY_VERSION: 1-alpha-20251107-1
+      APPIMAGETOOL_VERSION: 1.9.1
+    steps:
+      - name: Checkout Git
+        id: checkout_git
+        uses: actions/checkout@v4
+
+      - name: Install build and packaging dependencies
+        id: fetch_deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            cmake \
+            desktop-file-utils \
+            file \
+            gettext \
+            help2man \
+            libaubio-dev \
+            libavcodec-dev \
+            libavformat-dev \
+            libboost-iostreams-dev \
+            libboost-locale-dev \
+            libboost-program-options-dev \
+            libboost-system-dev \
+            libcpprest-dev \
+            libepoxy-dev \
+            libfftw3-dev \
+            libfmt-dev \
+            libfreetype6-dev \
+            libgmock-dev \
+            libgtest-dev \
+            libglm-dev \
+            libicu-dev \
+            libjpeg-dev \
+            libopencv-dev \
+            libopenblas-dev \
+            libpango1.0-dev \
+            libportmidi-dev \
+            librsvg2-dev \
+            libsdl2-dev \
+            libspdlog-dev \
+            libssl-dev \
+            libswscale-dev \
+            libwebp-dev \
+            libxml++2.6-dev \
+            ninja-build \
+            nlohmann-json3-dev \
+            patchelf \
+            portaudio19-dev \
+            squashfs-tools \
+            wget
+
+      - name: Download AppImage tooling
+        run: |
+          mkdir -p .ci-tools
+          wget -q -O .ci-tools/linuxdeploy.AppImage \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/${LINUXDEPLOY_VERSION}/linuxdeploy-${TOOL_ARCH}.AppImage"
+          wget -q -O .ci-tools/appimagetool.AppImage \
+            "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-${TOOL_ARCH}.AppImage"
+          chmod +x .ci-tools/*.AppImage
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: c-cpp
+          build-mode: manual
+          queries: security-and-quality
+          packs: +githubsecuritylab/codeql-cpp-queries
+
+      - name: Configure and build Performous
+        id: build_appimage
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DENABLE_WEBSERVER=ON \
+            -DENABLE_WEBCAM=ON \
+            -DSELF_BUILT_CED=AUTO \
+            -DPERFORMOUS_VERSION=${{ inputs.package_complete_version }}
+          cmake --build build --parallel
+          DESTDIR="${GITHUB_WORKSPACE}/AppDir" cmake --install build
+
+      - name: Prepare and validate the AppDir
+        run: |
+          install -Dm644 AppDir/usr/share/applications/performous.desktop AppDir/performous.desktop
+          ln -sfn usr/share/icons/hicolor/scalable/apps/performous.svg AppDir/performous.svg
+          ln -sfn performous.svg AppDir/.DirIcon
+          test -x AppDir/usr/bin/performous
+          test -f AppDir/performous.desktop
+          test -L AppDir/performous.svg
+          test -L AppDir/.DirIcon
+          desktop-file-validate AppDir/performous.desktop
+          file AppDir/usr/bin/performous
+          ldd AppDir/usr/bin/performous
+
+      - name: Bundle runtime libraries into AppDir
+        run: |
+          APPIMAGE_EXTRACT_AND_RUN=1 \
+          VERSION=${{ inputs.package_complete_version }} \
+          ./.ci-tools/linuxdeploy.AppImage \
+            --appdir AppDir \
+            -e AppDir/usr/bin/performous \
+            -d AppDir/performous.desktop \
+            -i AppDir/performous.svg
+          test -x AppDir/AppRun
+
+      - name: Create the AppImage
+        run: |
+          # Pull in our common build functions.
+          . .github/workflows/build_functions.sh
+          ARCH=${APPIMAGE_ARCH} \
+          APPIMAGE_EXTRACT_AND_RUN=1 \
+          VERSION=${{ inputs.package_complete_version }} \
+          ./.ci-tools/appimagetool.AppImage --comp zstd AppDir
+          package_name "$(pwd)" "*.AppImage" "${{ inputs.package_complete_version }}"
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:c-cpp"
+
+      # Upload artifacts during pull-requests
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        if: ${{ github.event_name == 'pull_request' }}
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.ARTIFACT_PATH }}
+
+      # Upload artifacts on master
+      - name: Upload artifact with unified name
+        if: ${{ github.ref == 'refs/heads/master' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.MASTER_ARTIFACT_NAME }}
+          path: ${{ env.MASTER_ARTIFACT_PATH }}
+
+      # Upload artifacts to releases only during Release events
+      - name: Upload artifacts to tagged release
+        id: upload_assets
+        if: ${{ github.event_name != 'pull_request' && github.ref_type == 'tag' }}
+        uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          release_id: ${{ inputs.release_id }}
+          file: ${{ env.ARTIFACT_PATH }}

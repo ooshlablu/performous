@@ -1,0 +1,171 @@
+name: Build and Release Performous
+
+# Controls when the workflow will run
+on:
+  # Run on a schedule to get weekly updates for the Linux containers
+  # and keep the cache fresh for Windows builds. Runs Mondays and Thursdays at midnight.
+  schedule:
+    - cron: "0 0 * * 1,4"
+  # Triggers the workflow on merges to master, release branches,
+  # all PRs, and release tags 
+  push:
+    branches:
+      - master
+      - '[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+'
+    tags:
+      - '[0-9]+\.[0-9]+\.[0-9]+'
+      - '[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+'
+
+  # On anything pull request related
+  pull_request:
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  packages: write
+  pull-requests: write
+  security-events: write
+  statuses: write
+
+# Note: entire jobs or sections can be disabled by adding
+# if: ${{ false }} to the definition column
+jobs:
+  # Determine version
+  determine_version:
+    name: Determine the version to be used
+    runs-on: ubuntu-latest
+    outputs:
+      latest_tag_version: ${{ steps.versioning.outputs.latest_tag_version }}
+      latest_full_tag_version: ${{ steps.versioning.outputs.latest_full_tag_version }}
+      version_major: ${{ steps.versioning.outputs.version_major }}
+      version_minor: ${{ steps.versioning.outputs.version_minor }}
+      version_patch: ${{ steps.versioning.outputs.version_patch }}
+      version_tweak: ${{ steps.versioning.outputs.version_tweak }}
+      complete_version: ${{ steps.versioning.outputs.complete_version }}
+    steps:
+      - name: Checkout Performous
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.workspace }}/performous
+          repository: ${{ github.event.repository.full_name }}
+          ref: '${{ github.event.head.ref }}'
+          fetch-depth: 0
+      - name: Determine the complete version
+        id: versioning
+        run: |
+          # Always check the tags on master since it will have the latest.
+          # Tags will trigger their own workflow and version names
+          cd performous
+          LATEST_TAG_VERSION=$(git describe --tags --abbrev=0 || echo 1.0.0)
+          LATEST_FULL_TAG_VERSION=$(git describe --tags || echo 1.0.0)
+          echo "latest_tag_version=$(git describe --tags --abbrev=0 || echo 1.0.0)" >> $GITHUB_OUTPUT
+          echo "latest_full_tag_version=$(git describe --tags || echo 1.0.0)" >> $GITHUB_OUTPUT
+          echo "version_major=$(cut -d '.' -f 1 <<< $(git describe --tags --abbrev=0 || echo 1.0.0))" >> $GITHUB_OUTPUT
+          echo "version_minor=$(cut -d '.' -f 2 <<< $(git describe --tags --abbrev=0 || echo 1.0.0))" >> $GITHUB_OUTPUT
+          echo "version_patch=$(cut -d '.' -f 3 <<< $(git describe --tags --abbrev=0 || echo 1.0.0))" >> $GITHUB_OUTPUT
+          echo "version_tweak=0" >> $GITHUB_OUTPUT
+
+          if [[ ${{ github.event_name }} == "push" ]]; then
+            COMMIT_SHA=$(git rev-parse --short=7 ${{ github.event.after }})
+          elif [[ ${{ github.event_name }} == "pull_request" ]]; then
+            COMMIT_SHA=$(git rev-parse --short=7 ${{ github.event.pull_request.head.sha }})
+          elif [[ ${{ github.event_name }} == "schedule" || ${{ github.event_name }} == "workflow_dispatch" ]]; then
+            COMMIT_SHA=$(git rev-parse --short=7 ${{ github.sha }})
+          fi
+
+          if [[ ${{ github.ref_type }} == "tag" ]]; then
+            echo "complete_version=${{github.ref_name}}" >> $GITHUB_OUTPUT
+          elif [[ ${{ github.ref_type }} == "branch" ]]; then
+            if [[ ${{ github.ref_name}} == "master" ]]; then
+              NUMCOMMITS=$(git describe --tags | sed "s|$(git describe --tags --abbrev=0)-||" | cut -d- -f1)
+              echo "complete_version=$LATEST_TAG_VERSION+${NUMCOMMITS}-git-${COMMIT_SHA}" >> $GITHUB_OUTPUT
+            else
+              echo "complete_version=$LATEST_TAG_VERSION+git-${COMMIT_SHA}-PR${{github.event.pull_request.number}}-alpha" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+
+  # Set up a release that packages will be published to.
+  create_release:
+    name: Create a release
+    runs-on: ubuntu-latest
+    # Make sure the output variable for this step is set so it
+    # can be consumed by later build steps
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+    steps:
+      - name: Create the Main release
+        id: create_release
+        if: ${{ github.event_name != 'pull_request' && github.ref_type == 'tag' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Performous ${{ github.ref_name }}
+          draft: true
+          prerelease: false
+
+  # Pull in the Linux build workflow
+  Linux_Packages:
+    name: Build the Linux packages
+    uses: ./.github/workflows/linux.yml
+    with:
+      package_complete_version: ${{ needs.determine_version.outputs.complete_version }}
+      release_id: ${{ needs.create_release.outputs.release_id }}
+    needs:
+      - determine_version
+      - create_release
+
+  # Pull in the AppImage build workflow
+  AppImage_Package:
+    name: Build the AppImage package
+    uses: ./.github/workflows/appimage.yml
+    with:
+      package_complete_version: ${{ needs.determine_version.outputs.complete_version }}
+      release_id: ${{ needs.create_release.outputs.release_id }}
+    needs:
+      - determine_version
+      - create_release
+
+  MacPorts_Package:
+    name: Package macOS builds
+    uses: ./.github/workflows/macports.yml
+    secrets: inherit
+    with:
+      package_complete_version: ${{ needs.determine_version.outputs.complete_version }}
+      release_id: ${{ needs.create_release.outputs.release_id }}
+    needs:
+      - determine_version
+      - create_release
+
+  Homebrew_Package:
+    name: Package macOS builds with Homebrew
+    uses: ./.github/workflows/homebrew.yml
+    secrets: inherit
+    with:
+      package_complete_version: ${{ needs.determine_version.outputs.complete_version }}
+      release_id: ${{ needs.create_release.outputs.release_id }}
+    needs:
+      - determine_version
+      - create_release
+
+
+  # Pull in the Windows build workflow
+  Windows_Packages:
+    name: Build the Windows packages
+    uses: ./.github/workflows/windows.yml
+    with:
+      package_complete_version: ${{ needs.determine_version.outputs.complete_version }}
+      release_id: ${{ needs.create_release.outputs.release_id }}
+    needs:
+      - determine_version
+      - create_release
+
+
+  CodeQL:
+    name: Static Code Analysis.
+    uses: ./.github/workflows/codeql.yml
+    needs:
+      - determine_version
