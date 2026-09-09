@@ -122,6 +122,16 @@ jobs:
           - os: fedora
             version: 44
     steps:
+      - name: Detect runner architecture
+        run: |
+          if [[ "${{ matrix.runners }}" == *"arm"* ]]; then
+            echo "DOCKER_PLATFORM=linux/arm64" >> $GITHUB_ENV
+            echo "BUILD_ARCH=aarch64" >> $GITHUB_ENV
+          else
+            echo "DOCKER_PLATFORM=linux/amd64" >> $GITHUB_ENV
+            echo "BUILD_ARCH=x86_64" >> $GITHUB_ENV
+          fi
+
       - name: Container name
         run: |
           # Figure out the container name we'll use for the build
@@ -145,6 +155,7 @@ jobs:
           context: docker/
           file: ./docker/Dockerfile.${{ matrix.distros.os }}
           load: true
+          platforms: ${{ env.DOCKER_PLATFORM }}
           tags: ${{ env.CONTAINER_NAME }} 
           build-args: OS_VERSION=${{ matrix.distros.version }}
 
@@ -165,7 +176,7 @@ jobs:
 
           # Run the build inside the docker containers using the
           # build script that was pulled inside during the build
-          docker run --env EXTRA_CMAKE_ARGS --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} ./build_performous.sh -g -D /github_actions_build/ -E ${EXTRA_CMAKE_ARGS} -R ${PERFORMOUS_RELEASE_TYPE}
+          docker run --platform ${{ env.DOCKER_PLATFORM }} --env EXTRA_CMAKE_ARGS --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} ./build_performous.sh -g -D /github_actions_build/ -E ${EXTRA_CMAKE_ARGS} -R ${PERFORMOUS_RELEASE_TYPE}
 
           # Provided by the common build functions
           package_name "$(pwd)/build" "Performous*-Linux.*" "${PACKAGE_VERSION}" "${{ matrix.distros.os }}" "${{ matrix.distros.version }}"
@@ -173,7 +184,7 @@ jobs:
       - name: Run unit tests
         run: |
           # Run the containers with the script for each testing suite
-          docker run --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} ./run_tests.sh
+          docker run --platform ${{ env.DOCKER_PLATFORM }} --rm -v $(pwd):/github_actions_build/ ${{ env.CONTAINER_NAME }} ./run_tests.sh
 
       # Upload artifacts during pull-requests
       - name: Upload artifact
