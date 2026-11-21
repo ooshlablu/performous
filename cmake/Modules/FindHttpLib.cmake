@@ -95,8 +95,16 @@ if(HttpLib_FOUND)
 	if(TARGET httplib::httplib)
 		get_target_property(_httplib_defs httplib::httplib INTERFACE_COMPILE_DEFINITIONS)
 		if(_httplib_defs)
-			list(REMOVE_ITEM _httplib_defs CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN CPPHTTPLIB_USE_NON_BLOCKING_GETADDRINFO)
-			set_target_properties(httplib::httplib PROPERTIES INTERFACE_COMPILE_DEFINITIONS "${_httplib_defs}")
+			# The entries are generator expressions wrapping the macro names
+			# (e.g. $<$<AND:$<PLATFORM_ID:Darwin>,...>:CPPHTTPLIB_USE_...>),
+			# so filter them with a regex match instead of list(REMOVE_ITEM).
+			set(_httplib_filtered "")
+			foreach(_httplib_def IN LISTS _httplib_defs)
+				if(NOT _httplib_def MATCHES "CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN|CPPHTTPLIB_USE_NON_BLOCKING_GETADDRINFO")
+					list(APPEND _httplib_filtered "${_httplib_def}")
+				endif()
+			endforeach()
+			set_target_properties(httplib::httplib PROPERTIES INTERFACE_COMPILE_DEFINITIONS "${_httplib_filtered}")
 		endif()
 	endif()
 endif()

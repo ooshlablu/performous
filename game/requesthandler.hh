@@ -6,6 +6,18 @@
 
 #include <nlohmann/json.hpp>
 
+// On Apple, the system cpp-httplib package (MacPorts) defines
+// CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN / CPPHTTPLIB_USE_NON_BLOCKING_GETADDRINFO,
+// which make httplib.h include <CFNetwork/CFHost.h>. That drags the legacy
+// MacTypes.h typedefs Size/Duration into the global namespace, colliding with
+// Performous's own struct Size (graphic/size.hh) and struct Duration (notes.hh).
+// Neither macro changes any class layout, so dropping them is ABI-safe against
+// a precompiled library; both only affect TLS client-cert loading and async DNS
+// internals, which our server-only webserver never uses. #undef is used as a
+// guaranteed guard even if the defines leak in through package configs.
+#undef CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN
+#undef CPPHTTPLIB_USE_NON_BLOCKING_GETADDRINFO
+
 #include <httplib.h>
 
 #include <memory>
