@@ -83,4 +83,20 @@ if(HttpLib_FOUND)
 	if(THREADS_FOUND)
 		list(APPEND HttpLib_LIBRARIES Threads::Threads)
 	endif()
+	# MacPorts' cpp-httplib config exports CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN
+	# and CPPHTTPLIB_USE_NON_BLOCKING_GETADDRINFO as interface definitions. These
+	# make httplib.h include <CFNetwork/CFHost.h>, which drags in the legacy
+	# MacTypes.h typedefs Size/Duration that collide with Performous's own
+	# global-namespace struct Size / struct Duration (requesthandler.hh is
+	# included all over the codebase). Neither macro changes any class layout,
+	# so dropping them is ABI-safe against a precompiled library; both only
+	# affect TLS client certificate loading and async DNS internals, which a
+	# server-only webserver does not use.
+	if(TARGET httplib::httplib)
+		get_target_property(_httplib_defs httplib::httplib INTERFACE_COMPILE_DEFINITIONS)
+		if(_httplib_defs)
+			list(REMOVE_ITEM _httplib_defs CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN CPPHTTPLIB_USE_NON_BLOCKING_GETADDRINFO)
+			set_target_properties(httplib::httplib PROPERTIES INTERFACE_COMPILE_DEFINITIONS "${_httplib_defs}")
+		endif()
+	endif()
 endif()
